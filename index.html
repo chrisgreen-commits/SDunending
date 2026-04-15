@@ -300,6 +300,7 @@ class Player {
         this.attackTimer = 0;
         this.landTimer = 0;
         this.groundedFrames = 0;
+        this.airFrames = 0;
         this.reset();
     }
 
@@ -361,6 +362,7 @@ class Player {
         this.attackTimer = 0;
         this.landTimer = 0;
         this.groundedFrames = 0;
+        this.airFrames = 0;
         this.updateUI();
     }
 
@@ -481,8 +483,15 @@ class Player {
         }
 
         this.grounded = foundGround;
-        if (this.grounded) this.groundedFrames++;
-        else this.groundedFrames = 0;
+        if (this.grounded) {
+            this.groundedFrames++;
+        } else {
+            this.groundedFrames = 0;
+            this.airFrames++;
+        }
+        // Capture before resetting – used by landing guard below
+        const wasGenuinelyAirborne = this.airFrames > 3;
+        if (this.grounded) this.airFrames = 0;
 
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.canDoubleJump)) {
@@ -497,13 +506,23 @@ class Player {
         let newState = 'idle';
 
         if (!this.grounded) {
-            newState = isKicking ? 'kick' : 'jump';
+            // Only switch to jump/kick sprite after 3+ genuine air frames.
+            // Prevents 1–2 frame flickers when walking across brick seams.
+            if (this.airFrames > 3) {
+                newState = isKicking ? 'kick' : 'jump';
+            } else {
+                // Grace period – hold ground movement state visually
+                if (horizontalSpeed > 1.5) newState = this.isRunning ? 'run' : 'walk';
+                else if (horizontalSpeed > 0.2) newState = 'walk';
+                else newState = 'idle';
+            }
         } else {
             // Priority Grounded States
             if (this.landTimer > 0) {
                 newState = 'land';
                 this.landTimer--;
-            } else if (!wasGrounded) {
+            } else if (!wasGrounded && wasGenuinelyAirborne) {
+                // Only play landing animation after a real jump/fall, not a seam hop
                 newState = 'land';
                 this.landTimer = 6;
             } else if (isKicking) {
@@ -511,7 +530,6 @@ class Player {
             } else if (isPunching) {
                 newState = 'land'; // Punching uses land frame for the crouch look
             } else if (horizontalSpeed > 1.5) {
-                // Determine if specifically running or walking based on current mode
                 newState = this.isRunning ? 'run' : 'walk';
             } else if (horizontalSpeed > 0.2) {
                 newState = 'walk';
