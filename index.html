@@ -300,6 +300,8 @@ class Player {
         this.lastTapKey = null;
         this.isRunning = false;
         this.attackTimer = 0;
+        this.landTimer = 0;
+        this.groundedFrames = 0;
         this.reset();
     }
 
@@ -308,6 +310,7 @@ class Player {
             idle: 'WinterIdle.png',
             walk1: 'WinterWalk1.png', 
             walk2: 'WinterWalk2.png', 
+            walk3: 'WinterWalk3.png',
             run1: 'WinterRun1.png',
             run2: 'WinterRun2.png',
             jump: 'WinterJumpS.png',
@@ -361,6 +364,8 @@ class Player {
         this.hasWings = false;
         this.canDoubleJump = false;
         this.attackTimer = 0;
+        this.landTimer = 0;
+        this.groundedFrames = 0;
         this.updateUI();
     }
 
@@ -425,6 +430,9 @@ class Player {
     }
 
     update(bricks, items) {
+        const wasGrounded = this.grounded;
+        if (!this.groundedFrames) this.groundedFrames = 0;
+
         if (this.attackTimer > 0) this.attackTimer--;
 
         this.handleInput();
@@ -483,6 +491,8 @@ class Player {
         }
 
         this.grounded = foundGround;
+        if (this.grounded) this.groundedFrames++;
+        else this.groundedFrames = 0;
 
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.canDoubleJump)) {
@@ -493,34 +503,49 @@ class Player {
             }
         }
 
-        // Animation State Priority
+        // --- ANIMATION STATE BLOCK START ---
+        let newState;
+
         if (!this.grounded) {
-            this.state = isKicking ? 'kick' : 'jump';
+            newState = isKicking ? 'kick' : 'jump';
+        } else if (!wasGrounded) {
+            // landing buffer (prevents jump → run snap)
+            newState = 'land';
+            this.landTimer = 6;
+        } else if (this.landTimer > 0) {
+            newState = 'land';
+            this.landTimer--;
+        } else if (isKicking) {
+            newState = 'kick';
+        } else if (isPunching) {
+            newState = 'land';
+        } else if (Math.abs(this.vx) > 1.0 && this.groundedFrames > 2) {
+            newState = this.isRunning ? 'run' : 'walk';
         } else {
-            if (isKicking) {
-                this.state = 'kick';
-            } else if (isPunching) {
-                this.state = 'land';
-            } else if (horizontalSpeed > 1.0) {
-                if (this.isRunning && horizontalSpeed > CONFIG.MAX_WALK_SPEED - 1.0) {
-                    this.state = 'run';
-                    if (this.animTimer++ >= 4) {
-                        this.animFrame = (this.animFrame + 1) % 2; 
-                        this.animTimer = 0;
-                    }
-                } else {
-                    this.state = 'walk';
-                    if (this.animTimer++ >= 6) {
-                        this.animFrame = (this.animFrame + 1) % 4; 
-                        this.animTimer = 0;
-                    }
-                }
-            } else {
-                this.state = 'idle';
-                this.animFrame = 0;
+            newState = 'idle';
+        }
+
+        // reset animation when state changes
+        if (this.state !== newState) {
+            this.animFrame = 0;
+            this.animTimer = 0;
+        }
+
+        this.state = newState;
+
+        // animation stepping
+        if (this.state === 'run') {
+            if (this.animTimer++ >= 4) {
+                this.animFrame = (this.animFrame + 1) % 2;
+                this.animTimer = 0;
+            }
+        } else if (this.state === 'walk') {
+            if (this.animTimer++ >= 6) {
+                this.animFrame = (this.animFrame + 1) % 4;
                 this.animTimer = 0;
             }
         }
+        // --- ANIMATION STATE BLOCK END ---
 
         // Item collection
         for (let item of items) {
@@ -573,7 +598,7 @@ class Player {
                 targetDrawH = CONFIG.PLAYER_CROUCH_HEIGHT;
                 break;
             case 'walk':
-                const walkCycle = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
+                const walkCycle = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk3];
                 img = walkCycle[this.animFrame % 4];
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 break;
