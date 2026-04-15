@@ -610,33 +610,62 @@ class Player {
         const aspectRatio = img.naturalWidth / img.naturalHeight;
         let finalDrawH = targetDrawH * scaleFactor;
         let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
-        
         this.width = targetDrawH * aspectRatio;
 
+        let yDrawOffset = (targetDrawH - finalDrawH); 
+        const wingY = this.y + 70;
+        const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
+
+        // Draw Wing BEHIND (Parallax depth logic)
+        if (this.hasWings) {
+            ctx.save();
+            ctx.font = "64px Arial"; 
+            ctx.globalAlpha = wingOpacity;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "gold";
+            
+            if (this.direction === 1) {
+                // Facing Right: Draw left wing behind (flipped)
+                ctx.translate(screenX - 45 + 32, wingY - 32);
+                ctx.scale(-1, 1);
+                ctx.fillText("🪽", -32, 32);
+            } else {
+                // Facing Left: Draw right wing behind (unflipped)
+                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
+            }
+            ctx.restore();
+        }
+
+        // Draw Player Sprite
+        ctx.save();
         if (this.direction === -1) {
             ctx.translate(screenX + (finalDrawW / 2), 0);
             ctx.scale(-1, 1);
             ctx.translate(-(screenX + (finalDrawW / 2)), 0);
         }
-
-        let yDrawOffset = (targetDrawH - finalDrawH); 
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
+        ctx.restore();
 
+        // Draw Wing IN FRONT
         if (this.hasWings) {
+            ctx.save();
             ctx.font = "64px Arial"; 
-            ctx.globalAlpha = 0.85 + Math.sin(Date.now() / 150) * 0.1;
+            ctx.globalAlpha = wingOpacity;
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
-            const wingY = this.y + 70;
-            ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
-            ctx.save();
-            ctx.translate(screenX - 45 + 32, wingY - 32);
-            ctx.scale(-1, 1);
-            ctx.fillText("🪽", -32, 32);
+
+            if (this.direction === 1) {
+                // Facing Right: Draw right wing in front
+                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
+            } else {
+                // Facing Left: Draw left wing in front (flipped)
+                ctx.translate(screenX - 45 + 32, wingY - 32);
+                ctx.scale(-1, 1);
+                ctx.fillText("🪽", -32, 32);
+            }
             ctx.restore();
-            ctx.shadowBlur = 0;
-            ctx.globalAlpha = 1.0;
         }
+
         ctx.restore();
     }
 }
