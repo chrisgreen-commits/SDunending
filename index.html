@@ -178,16 +178,19 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fixes:
- * - Landing pose now lingers indefinitely until player movement or jumping occurs.
- * - Platform generation strictly enforces minimum head clearance and reachable jump heights.
+ * Updates:
+ * - Double-tap to Run (WinterRun1.png, WinterRun2.png).
+ * - Platform generation: Lower platforms are never narrower than the ones above them.
+ * - Landing pose remains until horizontal input or jump occurs.
  */
 
 const CONFIG = {
     GRAVITY: 0.45,
     FRICTION: 0.82,
-    PLAYER_SPEED: 0.9,
-    MAX_SPEED: 7.5,
+    WALK_SPEED: 0.9,
+    RUN_SPEED: 1.8,
+    MAX_WALK_SPEED: 7.5,
+    MAX_RUN_SPEED: 13.0,
     JUMP_FORCE: 14.5,
     INTERNAL_WIDTH: 1920,
     INTERNAL_HEIGHT: 1080,
@@ -196,9 +199,10 @@ const CONFIG = {
     PLAYER_BASE_HEIGHT: 165,      
     PLAYER_SCALED_HEIGHT: 206.25, 
     ANIM_FPS: 10,
+    RUN_ANIM_FPS: 15,
     REQUIRED_KEYS: 25,
-    MIN_HEAD_CLEARANCE: 260, // Increased slightly to be safe
-    MAX_JUMP_REACH: 440      // Slightly reduced to ensure reachability
+    MIN_HEAD_CLEARANCE: 260, 
+    MAX_JUMP_REACH: 440      
 };
 
 const LEVELS = [
@@ -219,6 +223,12 @@ class Player {
         this.animFrame = 0;
         this.animTimer = 0;
         this.state = 'idle';
+        
+        // Double Tap Logic
+        this.lastTapTime = 0;
+        this.lastTapKey = null;
+        this.isRunning = false;
+
         this.reset();
     }
 
@@ -227,6 +237,8 @@ class Player {
             idle: 'WinterIdle.png',
             walk1: 'WinterWalk1.png', 
             walk2: 'WinterWalk2.png', 
+            run1: 'WinterRun1.png',
+            run2: 'WinterRun2.png',
             jump: 'WinterJumpS.png',
             land: 'WinterLandS.png'
         };
@@ -238,7 +250,7 @@ class Player {
                 const canvas = document.createElement('canvas');
                 canvas.width = 72; canvas.height = 108;
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#3498db';
+                ctx.fillStyle = this.isRunning ? '#e74c3c' : '#3498db';
                 ctx.fillRect(0,0,72,108);
                 resolve(canvas);
             };
@@ -270,6 +282,7 @@ class Player {
         this.grounded = false;
         this.direction = 1; 
         this.state = 'idle';
+        this.isRunning = false;
         this.animFrame = 0;
         this.animTimer = 0;
         this.keysCollected = 0;
@@ -289,24 +302,35 @@ class Player {
         }
     }
 
+    handleInput() {
+        const inputLeft = keys['ArrowLeft'] || keys['a'];
+        const inputRight = keys['ArrowRight'] || keys['d'];
+        
+        // If no horizontal keys are held, stop running
+        if (!inputLeft && !inputRight) {
+            this.isRunning = false;
+        }
+
+        const accel = this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED;
+        const max = this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED;
+
+        if (inputRight) {
+            this.vx += accel;
+            this.direction = 1;
+        } else if (inputLeft) {
+            this.vx -= accel;
+            this.direction = -1;
+        }
+        
+        this.vx = Math.max(-max, Math.min(max, this.vx));
+    }
+
     update(platforms, items) {
         let wasGrounded = this.grounded;
         let lastVy = this.vy;
         
-        // Input check
-        const inputLeft = keys['ArrowLeft'] || keys['a'];
-        const inputRight = keys['ArrowRight'] || keys['d'];
-        const isMovingInput = inputLeft || inputRight;
+        this.handleInput();
 
-        if (inputRight) {
-            this.vx += CONFIG.PLAYER_SPEED;
-            this.direction = 1;
-        } else if (inputLeft) {
-            this.vx -= CONFIG.PLAYER_SPEED;
-            this.direction = -1;
-        }
-        
-        this.vx = Math.max(-CONFIG.MAX_SPEED, Math.min(CONFIG.MAX_SPEED, this.vx));
         this.vx *= CONFIG.FRICTION;
         this.x += this.vx;
 
@@ -321,19 +345,16 @@ class Player {
             if (this.x + hitboxPadding < p.x + p.w && this.x + this.width - hitboxPadding > p.x &&
                 this.y < p.y + p.h && this.y + currentHeight > p.y) {
                 
-                // Ground collision
                 if (this.vy >= 0 && this.y + currentHeight - this.vy <= p.y + 25) {
                     this.y = p.y - currentHeight;
                     this.vy = 0;
                     foundGround = true;
                     if (this.hasWings) this.canDoubleJump = true;
                 } 
-                // Ceiling collision
                 else if (this.vy < 0 && this.y - this.vy >= p.y + p.h - 25) {
                     this.y = p.y + p.h;
                     this.vy = 0;
                 } 
-                // Wall collisions
                 else if (this.vx > 0 && this.x + this.width - hitboxPadding <= p.x + 25) {
                     this.x = p.x - this.width + hitboxPadding;
                     this.vx = 0;
@@ -346,7 +367,7 @@ class Player {
 
         this.grounded = foundGround;
 
-        // JUMP LOGIC
+        // JUMP
         if (keys['JumpPressed']) {
             if (this.grounded) {
                 this.vy = -CONFIG.JUMP_FORCE;
@@ -361,35 +382,33 @@ class Player {
             }
         }
 
-        // UPDATED ANIMATION STATE MACHINE
+        // ANIMATION STATE MACHINE
         if (this.grounded) {
             const isMovingActually = Math.abs(this.vx) > 0.6;
+            const inputHorizontal = keys['ArrowLeft'] || keys['a'] || keys['ArrowRight'] || keys['d'];
 
-            // 1. Initial Land: Triggered when hitting ground with velocity
             if (!wasGrounded && lastVy > 2.0) {
                 this.state = 'land';
             } 
-            // 2. Lingering Land: If already landing, stay landing UNLESS moving or jumping
             else if (this.state === 'land') {
-                if (isMovingInput || isMovingActually) {
-                    this.state = 'walk';
+                // Stay in land until player provides horizontal input or jumps
+                if (inputHorizontal || isMovingActually) {
+                    this.state = this.isRunning ? 'run' : 'walk';
                 }
             } 
-            // 3. Walk state
             else if (isMovingActually) {
-                this.state = 'walk';
+                this.state = this.isRunning ? 'run' : 'walk';
                 this.animTimer++;
-                if (this.animTimer >= 60 / CONFIG.ANIM_FPS) {
+                const fps = this.isRunning ? CONFIG.RUN_ANIM_FPS : CONFIG.ANIM_FPS;
+                if (this.animTimer >= 60 / fps) {
                     this.animFrame = (this.animFrame + 1) % 4; 
                     this.animTimer = 0;
                 }
             } 
-            // 4. Idle state (only if we didn't just land)
             else {
                 this.state = 'idle';
             }
         } else {
-            // Air state: Only override to jump if not on ground
             if (Math.abs(this.vy) > 0.5) {
                 this.state = 'jump';
             }
@@ -411,7 +430,6 @@ class Player {
             }
         }
 
-        // FALL RECOVERY
         if (this.y > CONFIG.INTERNAL_HEIGHT + 400) {
             const firstPlat = platforms[0];
             this.spawnAt(firstPlat.x + 100, firstPlat.y);
@@ -434,6 +452,9 @@ class Player {
         } else if (this.state === 'walk') {
             const seq = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
             img = seq[this.animFrame] || this.sprites.idle;
+        } else if (this.state === 'run') {
+            const seq = [this.sprites.run1, this.sprites.run2, this.sprites.run1, this.sprites.run2];
+            img = seq[this.animFrame] || this.sprites.run1;
         }
 
         if (this.direction === -1) {
@@ -539,30 +560,37 @@ class Game {
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
             let gap = 170 + Math.random() * 110;
             let width = 380 + Math.random() * 420;
-            
-            // Limit verticality to reachable jump heights
             let diff = (Math.random() - 0.5) * 350;
             let mainY = Math.max(250, Math.min(850, lastY + diff));
             
-            // Reachability clamp
             if (mainY < lastY - CONFIG.MAX_JUMP_REACH) mainY = lastY - CONFIG.MAX_JUMP_REACH;
 
-            this.platforms.push({ x: lastX + gap, y: mainY, w: width, h: 60 });
+            const mainPlat = { x: lastX + gap, y: mainY, w: width, h: 60 };
+            this.platforms.push(mainPlat);
             
-            // Stacked platform logic
-            if (Math.random() > 0.4) {
-                // Ensure clearance for standing + buffer
+            // Random stacked platform logic
+            if (Math.random() > 0.45) {
                 let altYOffset = CONFIG.MIN_HEAD_CLEARANCE + 60 + (Math.random() * 80);
-                let altY = mainY + (Math.random() > 0.5 ? -altYOffset : altYOffset);
+                const isBelow = Math.random() > 0.5;
+                let altY = mainY + (isBelow ? altYOffset : -altYOffset);
                 
                 altY = Math.max(120, Math.min(940, altY));
                 
-                // Final safety check for stacked clearance
                 if (Math.abs(altY - mainY) < CONFIG.MIN_HEAD_CLEARANCE) {
                     altY = mainY - CONFIG.MIN_HEAD_CLEARANCE - 20; 
                 }
 
                 let altWidth = 320 + Math.random() * 280;
+                
+                // CRITICAL FIX: Lower platform can't be narrower than upper platform
+                if (altY > mainY) {
+                    // Alternative is lower
+                    if (altWidth < mainPlat.w) altWidth = mainPlat.w + 100;
+                } else {
+                    // Main is lower
+                    if (mainPlat.w < altWidth) mainPlat.w = altWidth + 100;
+                }
+
                 this.platforms.push({ x: lastX + gap + 40, y: altY, w: altWidth, h: 40 });
                 
                 if (keysPlaced < CONFIG.REQUIRED_KEYS) {
@@ -585,7 +613,6 @@ class Game {
             lastY = mainY;
         }
 
-        // Emergency Wings
         if (!wingsPlaced) {
             let mid = Math.floor(this.platforms.length / 2);
             let p = this.platforms[mid];
@@ -702,11 +729,23 @@ class Game {
 
 const keys = {};
 window.addEventListener('keydown', e => {
+    const now = Date.now();
+    
+    // Double tap detection
+    if ((e.key === 'd' || e.key === 'ArrowRight' || e.key === 'a' || e.key === 'ArrowLeft') && !keys[e.key]) {
+        if (e.key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
+            game.player.isRunning = true;
+        }
+        game.player.lastTapTime = now;
+        game.player.lastTapKey = e.key;
+    }
+
     keys[e.key] = true;
     if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') {
         keys['JumpPressed'] = true;
     }
 });
+
 window.addEventListener('keyup', e => {
     keys[e.key] = false;
     if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') {
