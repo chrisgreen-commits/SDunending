@@ -62,7 +62,7 @@
             margin-bottom: 5px;
             letter-spacing: 2px;
         }
-        #objective {
+        #objective-label {
             font-size: 1.1rem;
             color: #aaa;
             text-transform: uppercase;
@@ -150,7 +150,10 @@
     <div id="ui-layer">
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
-            <div id="objective">Locate all Access Keys.</div>
+            <div id="objective-container">
+                <span id="objective-label">OBJECTIVE: </span>
+                <span id="objective-text" style="color: #ccc; text-transform: uppercase;">Locate all Access Keys.</span>
+            </div>
             <div id="key-counter">🔑 <span id="keys-found">0</span> / 25</div>
         </div>
 
@@ -165,9 +168,9 @@
 
     <div id="message-overlay">
         <div id="message-content">
-            <h1 id="overlay-title">SECTOR SECURED</h1>
-            <p id="overlay-text">The search continues...</p>
-            <button class="btn" id="next-btn" onclick="game.nextLevel()">INITIALIZE NEXT TRANSITION</button>
+            <h1 id="overlay-title">LEVEL COMPLETE</h1>
+            <p id="overlay-text">The journey into Avalon continues...</p>
+            <button class="btn" id="next-btn" onclick="game.nextLevel()">LOAD NEXT LEVEL</button>
         </div>
     </div>
 </div>
@@ -175,17 +178,17 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Scale & Clearance Update: 
- * - Winter is 1.5x larger.
- * - Level generation ensures enough vertical clearance for her size.
+ * UI Update:
+ * - Language changed to "Level" and "Objective".
+ * - Level 1 renamed to "Avalon Dungeon".
  */
 
 const CONFIG = {
     GRAVITY: 0.45,
     FRICTION: 0.82,
-    PLAYER_SPEED: 0.9, // Slightly increased to feel better at larger scale
+    PLAYER_SPEED: 0.9,
     MAX_SPEED: 7.5,
-    JUMP_FORCE: 14.5, // Slightly increased to ensure clearing higher platforms
+    JUMP_FORCE: 14.5,
     INTERNAL_WIDTH: 1920,
     INTERNAL_HEIGHT: 1080,
     LEVEL_LENGTH: 30,
@@ -194,11 +197,11 @@ const CONFIG = {
     PLAYER_SCALED_HEIGHT: 206.25, 
     ANIM_FPS: 10,
     REQUIRED_KEYS: 25,
-    MIN_VERTICAL_CLEARANCE: 350 // Ensures she can fit between platforms
+    MIN_VERTICAL_CLEARANCE: 350
 };
 
 const LEVELS = [
-    { id: 1, name: "The Vaults", color: "#0c0d14", accent: "#1e2135", hint: "Gather 25 keys to unlock the elevator.", bg: 'Level1Dungeon.png' },
+    { id: 1, name: "Avalon Dungeon", color: "#0c0d14", accent: "#1e2135", hint: "Gather 25 keys to unlock the elevator.", bg: 'Level1Dungeon.png' },
     { id: 2, name: "Neural Pathways", color: "#1a1410", accent: "#2d241d", hint: "Exploration is mandatory to proceed.", bg: 'Level1Dungeon.png' },
     { id: 3, name: "Crystal Spires", color: "#180f1b", accent: "#2d1b33", hint: "Reach the peak of Avalon.", bg: 'Level1Dungeon.png' }
 ];
@@ -306,12 +309,10 @@ class Player {
         const currentHeight = (this.state === 'land') ? CONFIG.PLAYER_BASE_HEIGHT : CONFIG.PLAYER_SCALED_HEIGHT;
         const hitboxPadding = this.width * 0.25;
 
-        // Platform Collision
         for (let p of platforms) {
             if (this.x + hitboxPadding < p.x + p.w && this.x + this.width - hitboxPadding > p.x &&
                 this.y < p.y + p.h && this.y + currentHeight > p.y) {
                 
-                // Buffer increased slightly for size
                 if (this.vy > 0 && this.y + currentHeight - this.vy <= p.y + 18) {
                     this.y = p.y - currentHeight;
                     this.vy = 0;
@@ -484,8 +485,8 @@ class Game {
 
     initLevel() {
         const levelData = LEVELS[this.currentLevelIndex];
-        document.getElementById('level-name').innerText = `SECTOR 0${levelData.id}: ${levelData.name.toUpperCase()}`;
-        document.getElementById('objective').innerText = `PROTOCOL: ${levelData.hint}`;
+        document.getElementById('level-name').innerText = `LEVEL ${levelData.id}: ${levelData.name.toUpperCase()}`;
+        document.getElementById('objective-text').innerText = levelData.hint;
         
         this.generateLevel();
         this.player.reset();
@@ -510,18 +511,16 @@ class Game {
         let wingsPlaced = false;
 
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
-            let gap = 160 + Math.random() * 120; // Increased gap to match speed
+            let gap = 160 + Math.random() * 120;
             let width = 350 + Math.random() * 450;
             let mainY = Math.max(250, Math.min(850, lastY + (Math.random() - 0.5) * 350));
             
             this.platforms.push({ x: lastX + gap, y: mainY, w: width, h: 60 });
             
             if (Math.random() > 0.45) {
-                // Ensure clearance is always greater than Winter's height
                 let altYOffset = CONFIG.MIN_VERTICAL_CLEARANCE + (Math.random() * 100);
                 let altY = mainY + (Math.random() > 0.5 ? -altYOffset : altYOffset);
                 
-                // Bounds check
                 altY = Math.max(150, Math.min(930, altY));
                 
                 let altWidth = 300 + Math.random() * 300;
