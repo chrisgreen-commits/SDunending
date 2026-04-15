@@ -179,8 +179,8 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Fixes:
- * - Walking animation now overrides Landing state instantly.
- * - Platform generation ensures minimum 250px head clearance and max 450px jump height.
+ * - Landing pose now lingers indefinitely until player movement or jumping occurs.
+ * - Platform generation strictly enforces minimum head clearance and reachable jump heights.
  */
 
 const CONFIG = {
@@ -197,10 +197,8 @@ const CONFIG = {
     PLAYER_SCALED_HEIGHT: 206.25, 
     ANIM_FPS: 10,
     REQUIRED_KEYS: 25,
-    // Minimum distance for player to stand between two platforms
-    MIN_HEAD_CLEARANCE: 250,
-    // Maximum height reachable with a double jump
-    MAX_JUMP_REACH: 450 
+    MIN_HEAD_CLEARANCE: 260, // Increased slightly to be safe
+    MAX_JUMP_REACH: 440      // Slightly reduced to ensure reachability
 };
 
 const LEVELS = [
@@ -221,7 +219,6 @@ class Player {
         this.animFrame = 0;
         this.animTimer = 0;
         this.state = 'idle';
-        this.landTimeout = null;
         this.reset();
     }
 
@@ -296,10 +293,15 @@ class Player {
         let wasGrounded = this.grounded;
         let lastVy = this.vy;
         
-        if (keys['ArrowRight'] || keys['d']) {
+        // Input check
+        const inputLeft = keys['ArrowLeft'] || keys['a'];
+        const inputRight = keys['ArrowRight'] || keys['d'];
+        const isMovingInput = inputLeft || inputRight;
+
+        if (inputRight) {
             this.vx += CONFIG.PLAYER_SPEED;
             this.direction = 1;
-        } else if (keys['ArrowLeft'] || keys['a']) {
+        } else if (inputLeft) {
             this.vx -= CONFIG.PLAYER_SPEED;
             this.direction = -1;
         }
@@ -319,19 +321,19 @@ class Player {
             if (this.x + hitboxPadding < p.x + p.w && this.x + this.width - hitboxPadding > p.x &&
                 this.y < p.y + p.h && this.y + currentHeight > p.y) {
                 
-                // Falling into top
+                // Ground collision
                 if (this.vy >= 0 && this.y + currentHeight - this.vy <= p.y + 25) {
                     this.y = p.y - currentHeight;
                     this.vy = 0;
                     foundGround = true;
                     if (this.hasWings) this.canDoubleJump = true;
                 } 
-                // Hitting head
+                // Ceiling collision
                 else if (this.vy < 0 && this.y - this.vy >= p.y + p.h - 25) {
                     this.y = p.y + p.h;
                     this.vy = 0;
                 } 
-                // Side walls
+                // Wall collisions
                 else if (this.vx > 0 && this.x + this.width - hitboxPadding <= p.x + 25) {
                     this.x = p.x - this.width + hitboxPadding;
                     this.vx = 0;
@@ -344,14 +346,13 @@ class Player {
 
         this.grounded = foundGround;
 
-        // JUMPING
+        // JUMP LOGIC
         if (keys['JumpPressed']) {
             if (this.grounded) {
                 this.vy = -CONFIG.JUMP_FORCE;
                 this.grounded = false;
                 this.state = 'jump';
                 keys['JumpPressed'] = false;
-                if(this.landTimeout) { clearTimeout(this.landTimeout); this.landTimeout = null; }
             } else if (this.hasWings && this.canDoubleJump) {
                 this.vy = -CONFIG.JUMP_FORCE * 0.95;
                 this.canDoubleJump = false; 
@@ -360,41 +361,41 @@ class Player {
             }
         }
 
-        // ANIMATION STATE MACHINE
+        // UPDATED ANIMATION STATE MACHINE
         if (this.grounded) {
-            const isMoving = Math.abs(this.vx) > 0.6;
+            const isMovingActually = Math.abs(this.vx) > 0.6;
 
-            // If we JUST landed
-            if (!wasGrounded && lastVy > 1.8 && !isMoving) {
+            // 1. Initial Land: Triggered when hitting ground with velocity
+            if (!wasGrounded && lastVy > 2.0) {
                 this.state = 'land';
-                if (this.landTimeout) clearTimeout(this.landTimeout);
-                this.landTimeout = setTimeout(() => { 
-                    if(this.state === 'land') this.state = 'idle'; 
-                    this.landTimeout = null;
-                }, 200);
             } 
-            else if (isMoving) {
-                // Moving cancels the "landing" lock immediately
-                if (this.landTimeout) { clearTimeout(this.landTimeout); this.landTimeout = null; }
+            // 2. Lingering Land: If already landing, stay landing UNLESS moving or jumping
+            else if (this.state === 'land') {
+                if (isMovingInput || isMovingActually) {
+                    this.state = 'walk';
+                }
+            } 
+            // 3. Walk state
+            else if (isMovingActually) {
                 this.state = 'walk';
                 this.animTimer++;
                 if (this.animTimer >= 60 / CONFIG.ANIM_FPS) {
                     this.animFrame = (this.animFrame + 1) % 4; 
                     this.animTimer = 0;
                 }
-            } else {
-                if (this.state !== 'land') {
-                    this.state = 'idle';
-                }
+            } 
+            // 4. Idle state (only if we didn't just land)
+            else {
+                this.state = 'idle';
             }
         } else {
-            // Air state
+            // Air state: Only override to jump if not on ground
             if (Math.abs(this.vy) > 0.5) {
                 this.state = 'jump';
             }
         }
 
-        // ITEMS
+        // ITEM COLLECTION
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
@@ -410,6 +411,7 @@ class Player {
             }
         }
 
+        // FALL RECOVERY
         if (this.y > CONFIG.INTERNAL_HEIGHT + 400) {
             const firstPlat = platforms[0];
             this.spawnAt(firstPlat.x + 100, firstPlat.y);
@@ -527,7 +529,6 @@ class Game {
         this.platforms = [];
         this.items = [];
         
-        // Starting ground
         this.platforms.push({ x: 0, y: 800, w: 900, h: 400 });
         
         let lastX = 800;
@@ -536,41 +537,40 @@ class Game {
         let wingsPlaced = false;
 
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
-            let gap = 160 + Math.random() * 120;
-            let width = 350 + Math.random() * 450;
+            let gap = 170 + Math.random() * 110;
+            let width = 380 + Math.random() * 420;
             
-            // Limit the vertical change to ensure reachable height
+            // Limit verticality to reachable jump heights
             let diff = (Math.random() - 0.5) * 350;
             let mainY = Math.max(250, Math.min(850, lastY + diff));
             
-            // Force jump reachability (even if it's descending, we don't want too big of a drop either)
+            // Reachability clamp
             if (mainY < lastY - CONFIG.MAX_JUMP_REACH) mainY = lastY - CONFIG.MAX_JUMP_REACH;
 
             this.platforms.push({ x: lastX + gap, y: mainY, w: width, h: 60 });
             
-            // Random Second layer of platforms
+            // Stacked platform logic
             if (Math.random() > 0.4) {
-                // Ensure at least MIN_HEAD_CLEARANCE
-                let altYOffset = CONFIG.MIN_HEAD_CLEARANCE + 50 + (Math.random() * 100);
+                // Ensure clearance for standing + buffer
+                let altYOffset = CONFIG.MIN_HEAD_CLEARANCE + 60 + (Math.random() * 80);
                 let altY = mainY + (Math.random() > 0.5 ? -altYOffset : altYOffset);
                 
-                // Keep it in bounds
-                altY = Math.max(100, Math.min(950, altY));
+                altY = Math.max(120, Math.min(940, altY));
                 
-                // Re-verify clearance if we capped at bounds
+                // Final safety check for stacked clearance
                 if (Math.abs(altY - mainY) < CONFIG.MIN_HEAD_CLEARANCE) {
-                    altY = mainY - CONFIG.MIN_HEAD_CLEARANCE; // Push up if forced together
+                    altY = mainY - CONFIG.MIN_HEAD_CLEARANCE - 20; 
                 }
 
-                let altWidth = 300 + Math.random() * 300;
-                this.platforms.push({ x: lastX + gap + 50, y: altY, w: altWidth, h: 40 });
+                let altWidth = 320 + Math.random() * 280;
+                this.platforms.push({ x: lastX + gap + 40, y: altY, w: altWidth, h: 40 });
                 
                 if (keysPlaced < CONFIG.REQUIRED_KEYS) {
                     this.items.push({ x: lastX + gap + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
                     keysPlaced++;
                 }
 
-                if (!wingsPlaced && i > 4 && Math.random() > 0.7) {
+                if (!wingsPlaced && i > 3 && Math.random() > 0.65) {
                     this.items.push({ x: lastX + gap + 150, y: altY - 100, type: 'wings', collected: false });
                     wingsPlaced = true;
                 }
@@ -585,7 +585,7 @@ class Game {
             lastY = mainY;
         }
 
-        // Safety wings
+        // Emergency Wings
         if (!wingsPlaced) {
             let mid = Math.floor(this.platforms.length / 2);
             let p = this.platforms[mid];
