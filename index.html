@@ -182,8 +182,7 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fix: Walk cycle state switching logic aligned with Run cycle to prevent stutter.
- * Fix: Wing z-layer swapping (Front vs Back) as per user request.
+ * Fix: Wing positioning adjusted to 75% character height.
  */
 
 const CONFIG = {
@@ -443,7 +442,7 @@ class Player {
         const isKicking = keys['KickPressed'];
 
         const horizontalSpeed = Math.abs(this.vx);
-        if (horizontalSpeed < 1.0) { // Slightly higher cutoff to ensure stickier logic
+        if (horizontalSpeed < 1.0) {
             this.isRunning = false;
         }
 
@@ -504,7 +503,7 @@ class Player {
                 newState = isKicking ? 'kick' : 'jump';
             } else {
                 if (horizontalSpeed > 1.5) newState = this.isRunning ? 'run' : 'walk';
-                else if (horizontalSpeed > 0.8) newState = 'walk'; // Aligned with run threshold logic
+                else if (horizontalSpeed > 0.8) newState = 'walk';
                 else newState = 'idle';
             }
         } else {
@@ -520,7 +519,7 @@ class Player {
                 newState = 'land'; 
             } else if (horizontalSpeed > 1.5) {
                 newState = this.isRunning ? 'run' : 'walk';
-            } else if (horizontalSpeed > 0.8) { // Walk threshold aligned with Run logic
+            } else if (horizontalSpeed > 0.8) {
                 newState = 'walk';
             } else {
                 newState = 'idle';
@@ -612,13 +611,13 @@ class Player {
         this.width = targetDrawH * aspectRatio;
 
         let yDrawOffset = CONFIG.PLAYER_PHYS_HEIGHT - finalDrawH;
-        const wingY = this.y + 70;
+        
+        // --- IMPROVED WING POSITIONING ---
+        // Wing shoulder anchor: 75% up from the bottom of the visible sprite
+        const shoulderY = (this.y + CONFIG.PLAYER_PHYS_HEIGHT) - (finalDrawH * 0.75);
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
-        // --- SWAPPED WING DEPTH LOGIC ---
-
-        // 1. Draw "Behind" Wing AFTER Player (In front) - Moved below character draw
-        // 2. Draw "Front" Wing BEFORE Player (Behind)
+        // 1. Draw "Front" Wing (actually behind)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -626,13 +625,13 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             if (this.direction === 1) {
-                // Was "Front" (now behind)
-                ctx.translate(screenX - 45 + 32, wingY - 32);
+                // Left wing (behind char)
+                ctx.translate(screenX - 45 + 32, shoulderY - 32);
                 ctx.scale(-1, 1);
                 ctx.fillText("🪽", -32, 32);
             } else {
-                // Was "Front" (now behind)
-                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
+                // Right wing (behind char)
+                ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
             }
             ctx.restore();
         }
@@ -647,7 +646,7 @@ class Player {
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
         ctx.restore();
 
-        // 3. Draw "Back" Wing (Now Front)
+        // 2. Draw "Back" Wing (actually front)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -655,11 +654,11 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             if (this.direction === 1) {
-                // Was "Behind" (now front)
-                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
+                // Right wing (in front of char)
+                ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
             } else {
-                // Was "Behind" (now front)
-                ctx.translate(screenX - 45 + 32, wingY - 32);
+                // Left wing (in front of char)
+                ctx.translate(screenX - 45 + 32, shoulderY - 32);
                 ctx.scale(-1, 1);
                 ctx.fillText("🪽", -32, 32);
             }
