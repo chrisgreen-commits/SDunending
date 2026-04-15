@@ -182,8 +182,8 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fix: Animation state machine overhaul to prevent "stuck" crouch/punch during walk cycle.
- * Fix: Explicit separation of Walk assets (Walk1-3) vs Run assets (Run1-2).
+ * Fix: Walk cycle state switching logic aligned with Run cycle to prevent stutter.
+ * Fix: Wing z-layer swapping (Front vs Back) as per user request.
  */
 
 const CONFIG = {
@@ -200,9 +200,9 @@ const CONFIG = {
     PARALLAX_FACTOR: 0.3,
     PLAYER_BASE_HEIGHT: 206,      
     PLAYER_CROUCH_HEIGHT: 154,
-    PLAYER_RUN_HEIGHT: 193,       // 125% of PLAYER_CROUCH_HEIGHT (154 * 1.25)
-    PLAYER_PHYS_HEIGHT: 120,      // 2 bricks — vertical clearance for L/R movement
-    PLAYER_PHYS_WIDTH: 60,        // 1 brick  — horizontal clearance for U/D movement
+    PLAYER_RUN_HEIGHT: 193,       
+    PLAYER_PHYS_HEIGHT: 120,      
+    PLAYER_PHYS_WIDTH: 60,        
     REQUIRED_KEYS: 25,
     MIN_HEAD_CLEARANCE: 260, 
     MAX_JUMP_REACH: 440,
@@ -443,11 +443,10 @@ class Player {
         const isKicking = keys['KickPressed'];
 
         const horizontalSpeed = Math.abs(this.vx);
-        if (horizontalSpeed < 0.2) {
+        if (horizontalSpeed < 1.0) { // Slightly higher cutoff to ensure stickier logic
             this.isRunning = false;
         }
 
-        // Fixed physics hitbox: 1 brick wide (60px), 2 bricks tall (120px)
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
         const physPad = Math.max(0, (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2);
 
@@ -487,7 +486,6 @@ class Player {
             this.groundedFrames = 0;
             this.airFrames++;
         }
-        // Capture before resetting – used by landing guard below
         const wasGenuinelyAirborne = this.airFrames > 3;
         if (this.grounded) this.airFrames = 0;
 
@@ -500,63 +498,53 @@ class Player {
             }
         }
 
-        // --- REFACTORED STATE MACHINE ---
         let newState = 'idle';
-
         if (!this.grounded) {
-            // Only switch to jump/kick sprite after 3+ genuine air frames.
-            // Prevents 1–2 frame flickers when walking across brick seams.
             if (this.airFrames > 3) {
                 newState = isKicking ? 'kick' : 'jump';
             } else {
-                // Grace period – hold ground movement state visually
                 if (horizontalSpeed > 1.5) newState = this.isRunning ? 'run' : 'walk';
-                else if (horizontalSpeed > 0.2) newState = 'walk';
+                else if (horizontalSpeed > 0.8) newState = 'walk'; // Aligned with run threshold logic
                 else newState = 'idle';
             }
         } else {
-            // Priority Grounded States
             if (this.landTimer > 0) {
                 newState = 'land';
                 this.landTimer--;
             } else if (!wasGrounded && wasGenuinelyAirborne) {
-                // Only play landing animation after a real jump/fall, not a seam hop
                 newState = 'land';
                 this.landTimer = 6;
             } else if (isKicking) {
                 newState = 'kick';
             } else if (isPunching) {
-                newState = 'land'; // Punching uses land frame for the crouch look
+                newState = 'land'; 
             } else if (horizontalSpeed > 1.5) {
                 newState = this.isRunning ? 'run' : 'walk';
-            } else if (horizontalSpeed > 0.2) {
+            } else if (horizontalSpeed > 0.8) { // Walk threshold aligned with Run logic
                 newState = 'walk';
             } else {
                 newState = 'idle';
             }
         }
 
-        // Reset animation logic on state change
         if (this.state !== newState) {
             this.animFrame = 0;
             this.animTimer = 0;
             this.state = newState;
         }
 
-        // Animation Advance
         if (this.state === 'run') {
             if (this.animTimer++ >= 4) {
                 this.animFrame = (this.animFrame + 1) % 2;
                 this.animTimer = 0;
             }
         } else if (this.state === 'walk') {
-            if (this.animTimer++ >= 8) { // Walk speed cycle
-                this.animFrame = (this.animFrame + 1) % 4; // 0: Idle, 1: Walk1, 2: Walk2, 3: Walk3
+            if (this.animTimer++ >= 8) { 
+                this.animFrame = (this.animFrame + 1) % 4; 
                 this.animTimer = 0;
             }
         }
 
-        // Items logic...
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
@@ -588,14 +576,12 @@ class Player {
         let targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
         let scaleFactor = 1.0;
 
-        // ASSET MAPPING
         switch(this.state) {
             case 'run':
                 img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2;
                 targetDrawH = CONFIG.PLAYER_RUN_HEIGHT;
                 break;
             case 'walk':
-                // Frame 0 of walk cycle is the Idle stance
                 const walkCycle = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk3];
                 img = walkCycle[this.animFrame % 4];
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
@@ -625,12 +611,14 @@ class Player {
         let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
         this.width = targetDrawH * aspectRatio;
 
-        // Anchor sprite bottom to physics box bottom (this.y + PLAYER_PHYS_HEIGHT = ground level)
         let yDrawOffset = CONFIG.PLAYER_PHYS_HEIGHT - finalDrawH;
         const wingY = this.y + 70;
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
-        // Wing Depth Logic (Behind)
+        // --- SWAPPED WING DEPTH LOGIC ---
+
+        // 1. Draw "Behind" Wing AFTER Player (In front) - Moved below character draw
+        // 2. Draw "Front" Wing BEFORE Player (Behind)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -638,13 +626,13 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             if (this.direction === 1) {
-                // Facing right: right wing goes behind
-                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
-            } else {
-                // Facing left: left wing goes behind
+                // Was "Front" (now behind)
                 ctx.translate(screenX - 45 + 32, wingY - 32);
                 ctx.scale(-1, 1);
                 ctx.fillText("🪽", -32, 32);
+            } else {
+                // Was "Front" (now behind)
+                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
             }
             ctx.restore();
         }
@@ -659,7 +647,7 @@ class Player {
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
         ctx.restore();
 
-        // Wing Depth Logic (Front)
+        // 3. Draw "Back" Wing (Now Front)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -667,13 +655,13 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             if (this.direction === 1) {
-                // Facing right: left wing comes in front
+                // Was "Behind" (now front)
+                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
+            } else {
+                // Was "Behind" (now front)
                 ctx.translate(screenX - 45 + 32, wingY - 32);
                 ctx.scale(-1, 1);
                 ctx.fillText("🪽", -32, 32);
-            } else {
-                // Facing left: right wing comes in front
-                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
             }
             ctx.restore();
         }
