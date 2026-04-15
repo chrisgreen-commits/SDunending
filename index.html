@@ -10,6 +10,8 @@
             --ui-bg: rgba(15, 15, 25, 0.98);
             --accent: #a8dadc;
             --danger: #ff4d4d;
+            --platform-grey: #8d9196;
+            --platform-highlight: #b0b4b9;
         }
         body, html {
             margin: 0;
@@ -181,9 +183,9 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Updates:
+ * - Platform Color: Lighter "Cement Grey" for better visibility.
  * - Proportional Scaling: No stretching or squashing.
- * - Dynamic Heights: Run and Land cycles are 75% of base height (proportional width).
- * - Animation Cycles: Strict sprite sequences for walk, run, and land.
+ * - Dynamic Heights: Run and Land cycles are 75% of base height.
  */
 
 const CONFIG = {
@@ -198,26 +200,26 @@ const CONFIG = {
     INTERNAL_HEIGHT: 1080,
     LEVEL_LENGTH: 30,
     PARALLAX_FACTOR: 0.3,
-    // Base height for Idle, Walk, Jump
     PLAYER_BASE_HEIGHT: 206,      
-    // Crouch height for Run, Land (75% of Base)
     PLAYER_CROUCH_HEIGHT: 154, 
     REQUIRED_KEYS: 25,
     MIN_HEAD_CLEARANCE: 260, 
     MAX_JUMP_REACH: 440,
-    LAND_STEP_REQUIREMENT: 320 
+    LAND_STEP_REQUIREMENT: 320,
+    PLATFORM_COLOR: '#8d9196',
+    PLATFORM_HIGHLIGHT: '#b0b4b9'
 };
 
 const LEVELS = [
-    { id: 1, name: "Avalon Dungeon", color: "#0c0d14", accent: "#1e2135", hint: "Gather 25 keys to unlock the elevator.", bg: 'Level1Dungeon.png' },
-    { id: 2, name: "Neural Pathways", color: "#1a1410", accent: "#2d241d", hint: "Exploration is mandatory to proceed.", bg: 'Level1Dungeon.png' },
-    { id: 3, name: "Crystal Spires", color: "#180f1b", accent: "#2d1b33", hint: "Reach the peak of Avalon.", bg: 'Level1Dungeon.png' }
+    { id: 1, name: "Avalon Dungeon", color: "#0c0d14", accent: CONFIG.PLATFORM_COLOR, hint: "Gather 25 keys to unlock the elevator.", bg: 'Level1Dungeon.png' },
+    { id: 2, name: "Neural Pathways", color: "#1a1410", accent: CONFIG.PLATFORM_COLOR, hint: "Exploration is mandatory to proceed.", bg: 'Level1Dungeon.png' },
+    { id: 3, name: "Crystal Spires", color: "#180f1b", accent: CONFIG.PLATFORM_COLOR, hint: "Reach the peak of Avalon.", bg: 'Level1Dungeon.png' }
 ];
 
 class Player {
     constructor() {
         this.baseHeight = CONFIG.PLAYER_BASE_HEIGHT;
-        this.width = 108; // This is a reference width, will be adjusted by aspect ratio
+        this.width = 108;
         this.keysCollected = 0;
         this.hasWings = false;
         this.canDoubleJump = false;
@@ -342,7 +344,6 @@ class Player {
         
         let foundGround = false;
         
-        // Determine collision height based on state
         let currentPhysHeight = (this.state === 'run' || this.state === 'land') ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         const hitboxPadding = 30;
 
@@ -453,7 +454,6 @@ class Player {
         let img = this.sprites.idle;
         let targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
 
-        // State machine for current sprite image and scale factor
         switch(this.state) {
             case 'jump':
                 img = this.sprites.jump;
@@ -472,16 +472,13 @@ class Player {
                 img = walkCycle[this.animFrame % 4];
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 break;
-            default: // idle
+            default:
                 img = this.sprites.idle;
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
         }
 
-        // Calculate proportional width based on natural aspect ratio to prevent stretching
         const aspectRatio = img.naturalWidth / img.naturalHeight;
         const targetDrawW = targetDrawH * aspectRatio;
-        
-        // Update character width for collision consistency based on current scale
         this.width = targetDrawW;
 
         if (this.direction === -1) {
@@ -490,32 +487,27 @@ class Player {
             ctx.translate(-(screenX + targetDrawW / 2), 0);
         }
 
-        // Align the bottom of the sprite with the current y position (feet-locked)
         const yOffset = (this.state === 'run' || this.state === 'land') ? 
                         CONFIG.PLAYER_CROUCH_HEIGHT - targetDrawH : 
                         CONFIG.PLAYER_BASE_HEIGHT - targetDrawH;
 
         ctx.drawImage(img, screenX, this.y + yOffset, targetDrawW, targetDrawH);
 
-        // Wings logic
         if (this.hasWings) {
             ctx.font = "64px Arial"; 
             ctx.globalAlpha = 0.85 + Math.sin(Date.now() / 150) * 0.1;
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             const wingY = this.y + 70 + yOffset;
-
             ctx.fillText("🪽", screenX + targetDrawW + 5, wingY);
             ctx.save();
             ctx.translate(screenX - 45 + 32, wingY - 32);
             ctx.scale(-1, 1);
             ctx.fillText("🪽", -32, 32);
             ctx.restore();
-
             ctx.shadowBlur = 0;
             ctx.globalAlpha = 1.0;
         }
-        
         ctx.restore();
     }
 }
@@ -706,15 +698,21 @@ class Game {
 
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        const level = LEVELS[this.currentLevelIndex];
         this.drawBackground();
 
         for (let p of this.platforms) {
             if (p.x + p.w > this.cameraX && p.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
-                this.ctx.fillStyle = level.accent;
+                // Platform base - Cement Grey
+                this.ctx.fillStyle = CONFIG.PLATFORM_COLOR;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, p.h);
-                this.ctx.fillStyle = "rgba(255,255,255,0.12)";
+                
+                // Top highlight
+                this.ctx.fillStyle = CONFIG.PLATFORM_HIGHLIGHT;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 4);
+                
+                // Add some structural depth
+                this.ctx.fillStyle = "rgba(0,0,0,0.2)";
+                this.ctx.fillRect(p.x - this.cameraX, p.y + p.h - 4, p.w, 4);
             }
         }
 
@@ -724,9 +722,7 @@ class Game {
                 this.ctx.shadowBlur = 25;
                 this.ctx.shadowColor = item.type === 'key' ? "gold" : "cyan";
                 this.ctx.font = item.type === 'key' ? "55px Arial" : "75px Arial";
-                
-                this.ctx.globalAlpha = 0.75; // 75% Transparency requirement
-                
+                this.ctx.globalAlpha = 0.75; 
                 const bounce = Math.sin(Date.now() / 300) * 15;
                 this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX, item.y + bounce);
                 this.ctx.globalAlpha = 1.0;
