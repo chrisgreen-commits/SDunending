@@ -182,7 +182,8 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fix: Forced animation state priority to prevent "stuck" graphics in run cycle.
+ * Fix: Forced animation state priority to prevent "stuck" graphics.
+ * Added: Head-butt brick breaking mechanic and "Ow!" particles.
  */
 
 const CONFIG = {
@@ -215,6 +216,32 @@ const LEVELS = [
     { id: 2, name: "Neural Pathways", color: "#1a1410", accent: CONFIG.PLATFORM_COLOR, hint: "Kick through obstacles in your way.", bg: 'Level1Dungeon.png' },
     { id: 3, name: "Crystal Spires", color: "#180f1b", accent: CONFIG.PLATFORM_COLOR, hint: "Reach the peak of Avalon.", bg: 'Level1Dungeon.png' }
 ];
+
+class Particle {
+    constructor(x, y, text) {
+        this.x = x;
+        this.y = y;
+        this.text = text;
+        this.life = 60; // 1 second at 60fps
+        this.vy = -1.5;
+        this.opacity = 1.0;
+    }
+    update() {
+        this.y += this.vy;
+        this.life--;
+        this.opacity = this.life / 60;
+    }
+    draw(ctx, cameraX) {
+        ctx.save();
+        ctx.globalAlpha = this.opacity;
+        ctx.fillStyle = "white";
+        ctx.font = "bold 24px Courier New";
+        ctx.shadowBlur = 4;
+        ctx.shadowColor = "black";
+        ctx.fillText(this.text, this.x - cameraX, this.y);
+        ctx.restore();
+    }
+}
 
 class Brick {
     constructor(x, y) {
@@ -257,7 +284,8 @@ class Brick {
 }
 
 class Player {
-    constructor() {
+    constructor(game) {
+        this.game = game; // Reference to game for particles
         this.baseHeight = CONFIG.PLAYER_BASE_HEIGHT;
         this.width = 108;
         this.keysCollected = 0;
@@ -350,7 +378,6 @@ class Player {
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
         
-        // If no movement keys are held, turn off sprint
         if (!inputLeft && !inputRight) {
             this.isRunning = false;
         }
@@ -402,7 +429,6 @@ class Player {
 
         this.handleInput();
 
-        // Move logic
         this.vx *= CONFIG.FRICTION;
         this.x += this.vx;
         this.vy += CONFIG.GRAVITY;
@@ -412,7 +438,6 @@ class Player {
         const isPunching = keys['ArrowDown'] || keys['s'];
         const isKicking = keys['KickPressed'];
 
-        // Logic check: ensure isRunning only resets if we drop significantly below walk speed
         const horizontalSpeed = Math.abs(this.vx);
         if (horizontalSpeed < 0.2) {
             this.isRunning = false;
@@ -430,16 +455,23 @@ class Player {
             if (this.x + hitboxPadding < b.x + b.w && this.x + this.width - hitboxPadding > b.x &&
                 this.y < b.y + b.h && this.y + currentPhysHeight > b.y) {
                 
+                // Ground detection
                 if (this.vy >= 0 && this.y + currentPhysHeight - this.vy <= b.y + 35) {
                     this.y = b.y - currentPhysHeight;
                     this.vy = 0;
                     foundGround = true;
                     if (this.hasWings) this.canDoubleJump = true;
                 } 
+                // Head collision detection (Breaking blocks with head)
                 else if (this.vy < 0 && this.y - this.vy >= b.y + b.h - 35) {
                     this.y = b.y + b.h;
                     this.vy = 0;
+                    b.damage();
+                    // Add "Ow!" particle
+                    const mouthX = this.direction === 1 ? this.x + this.width - 20 : this.x + 20;
+                    this.game.addParticle(mouthX, this.y + 40, "Ow!");
                 } 
+                // Wall collision
                 else if (this.vx > 0 && this.x + this.width - hitboxPadding <= b.x + 20) {
                     this.x = b.x - this.width + hitboxPadding;
                     this.vx = 0;
@@ -461,8 +493,7 @@ class Player {
             }
         }
 
-        // --- FIXED ANIMATION STATE LOGIC ---
-        // We prioritize states by speed and grounded status to ensure no "sticky" graphics.
+        // Animation State Priority
         if (!this.grounded) {
             this.state = isKicking ? 'kick' : 'jump';
         } else {
@@ -471,8 +502,6 @@ class Player {
             } else if (isPunching) {
                 this.state = 'land';
             } else if (horizontalSpeed > 1.0) {
-                // Determine if we should show Run or Walk cycle
-                // If isRunning is true AND speed is high, force RUN.
                 if (this.isRunning && horizontalSpeed > CONFIG.MAX_WALK_SPEED - 1.0) {
                     this.state = 'run';
                     if (this.animTimer++ >= 4) {
@@ -594,10 +623,11 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
         this.canvas.width = CONFIG.INTERNAL_WIDTH;
         this.canvas.height = CONFIG.INTERNAL_HEIGHT;
-        this.player = new Player();
+        this.player = new Player(this);
         this.currentLevelIndex = 0;
         this.bricks = [];
         this.items = [];
+        this.particles = [];
         this.backgrounds = {};
         this.exit = { x: 0, y: 0, w: 120, h: 220 };
         this.cameraX = 0;
@@ -605,6 +635,10 @@ class Game {
         this.handleResize();
         window.addEventListener('resize', () => this.handleResize());
         this.start();
+    }
+
+    addParticle(x, y, text) {
+        this.particles.push(new Particle(x, y, text));
     }
 
     handleResize() {
@@ -637,6 +671,7 @@ class Game {
         document.getElementById('objective-text').innerText = levelData.hint;
         this.generateLevel();
         this.player.reset();
+        this.particles = [];
         const firstBrick = this.bricks[0];
         this.player.spawnAt(firstBrick.x + 100, firstBrick.y);
         this.cameraX = 0;
@@ -703,6 +738,13 @@ class Game {
     update() {
         if (this.isPaused) return;
         this.player.update(this.bricks, this.items);
+        
+        // Update particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            this.particles[i].update();
+            if (this.particles[i].life <= 0) this.particles.splice(i, 1);
+        }
+
         let targetCam = this.player.x - (CONFIG.INTERNAL_WIDTH / 3);
         this.cameraX += (targetCam - this.cameraX) * 0.1;
         this.cameraX = Math.max(0, this.cameraX);
@@ -759,6 +801,8 @@ class Game {
                 this.ctx.shadowBlur = 0;
             }
         }
+        
+        // Draw Exit
         const ready = this.player.keysCollected >= CONFIG.REQUIRED_KEYS;
         this.ctx.fillStyle = ready ? "rgba(0, 255, 127, 0.3)" : "rgba(255, 0, 0, 0.2)";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
@@ -767,7 +811,13 @@ class Game {
         this.ctx.fillStyle = ready ? "#00ff7f" : "white";
         this.ctx.font = "bold 24px Courier New";
         this.ctx.fillText(ready ? "OPEN" : "LOCKED", this.exit.x - this.cameraX + this.exit.w/2, this.exit.y + this.exit.h/2);
+        
         this.player.draw(this.ctx, this.cameraX);
+
+        // Draw particles
+        for (let p of this.particles) {
+            p.draw(this.ctx, this.cameraX);
+        }
     }
 
     loop() {
@@ -783,7 +833,6 @@ window.addEventListener('keydown', e => {
     const isMoveKey = (key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft');
     
     if (isMoveKey && !keys[key]) {
-        // Double tap logic
         if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
             game.player.isRunning = true;
         }
