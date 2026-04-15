@@ -7,7 +7,7 @@
     <style>
         :root {
             --ui-gold: #ffd700;
-            --ui-bg: rgba(10, 10, 15, 0.95);
+            --ui-bg: rgba(15, 15, 25, 0.98);
             --accent: #a8dadc;
             --danger: #ff4d4d;
         }
@@ -54,6 +54,7 @@
             padding: 20px 30px;
             backdrop-filter: blur(10px);
             min-width: 450px;
+            box-shadow: 10px 10px 30px rgba(0,0,0,0.5);
         }
         #level-name {
             font-size: 2.2rem;
@@ -80,20 +81,21 @@
             bottom: 40px;
             left: 40px;
             background: var(--ui-bg);
-            padding: 15px 25px;
-            border-radius: 4px;
+            padding: 20px 30px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
-            gap: 15px;
-            opacity: 0.1;
-            transform: translateY(20px);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            gap: 20px;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid transparent;
         }
         .hud-powerup.active {
             opacity: 1;
             transform: translateY(0);
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
-            border: 1px solid var(--ui-gold);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+            border: 2px solid var(--ui-gold);
         }
 
         #message-overlay {
@@ -138,7 +140,7 @@
         }
         .btn:hover { 
             transform: scale(1.05);
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.6);
         }
     </style>
 </head>
@@ -158,10 +160,10 @@
         </div>
 
         <div class="hud-powerup" id="wing-indicator">
-            <span style="font-size: 2.5rem;">🪽</span>
+            <span style="font-size: 3rem; filter: drop-shadow(0 0 10px gold);">🪽</span>
             <div>
-                <div style="font-weight: bold; color: var(--ui-gold);">AERIAL ASCENSION</div>
-                <div style="font-size: 0.8rem; color: #888;">DOUBLE JUMP ENABLED</div>
+                <div style="font-size: 1.4rem; font-weight: bold; color: var(--ui-gold); letter-spacing: 1px;">AERIAL ASCENSION</div>
+                <div style="font-size: 0.9rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Double Jump Online</div>
             </div>
         </div>
     </div>
@@ -179,9 +181,9 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Updates:
- * - Running height reduced to 75% of idle height (leaning forward).
- * - Persistent Landing Pose: Character stays in land graphic until 3 steps worth of movement occurs.
- * - Double-tap to Run (WinterRun1.png, WinterRun2.png).
+ * - Refined Run Cycle: Strictly uses only run sprites at 75% height.
+ * - Key Visibility: Increased opacity (0.95), added strong golden glow, increased scale.
+ * - UI & Wing Visibility: Enhanced contrast and clarity.
  */
 
 const CONFIG = {
@@ -198,13 +200,13 @@ const CONFIG = {
     PARALLAX_FACTOR: 0.3,
     PLAYER_BASE_HEIGHT: 165,      
     PLAYER_SCALED_HEIGHT: 206.25, 
-    PLAYER_RUN_HEIGHT: 154.68, // 75% of scaled height
+    PLAYER_RUN_HEIGHT: 154.68, // 75% height for run
     ANIM_FPS: 10,
     RUN_ANIM_FPS: 15,
     REQUIRED_KEYS: 25,
     MIN_HEAD_CLEARANCE: 260, 
     MAX_JUMP_REACH: 440,
-    LAND_STEP_REQUIREMENT: 320 // Distance equivalent to roughly 3 steps
+    LAND_STEP_REQUIREMENT: 320 
 };
 
 const LEVELS = [
@@ -225,15 +227,10 @@ class Player {
         this.animFrame = 0;
         this.animTimer = 0;
         this.state = 'idle';
-        
-        // State persistence
-        this.landStepDistance = 0; // Tracks distance moved since landing
-
-        // Double Tap Logic
+        this.landStepDistance = 0;
         this.lastTapTime = 0;
         this.lastTapKey = null;
         this.isRunning = false;
-
         this.reset();
     }
 
@@ -343,7 +340,6 @@ class Player {
         this.y += this.vy;
         
         let foundGround = false;
-        // Determine collision height based on graphic state
         let collisionHeight = CONFIG.PLAYER_SCALED_HEIGHT;
         if (this.state === 'land') collisionHeight = CONFIG.PLAYER_BASE_HEIGHT;
         else if (this.state === 'run') collisionHeight = CONFIG.PLAYER_RUN_HEIGHT;
@@ -376,7 +372,6 @@ class Player {
 
         this.grounded = foundGround;
 
-        // JUMP (Clears landing persistence)
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.canDoubleJump)) {
                 this.vy = this.grounded ? -CONFIG.JUMP_FORCE : -CONFIG.JUMP_FORCE * 0.95;
@@ -388,7 +383,6 @@ class Player {
             }
         }
 
-        // ANIMATION STATE MACHINE
         if (this.grounded) {
             const isMovingActually = Math.abs(this.vx) > 0.6;
 
@@ -398,10 +392,7 @@ class Player {
             } 
             
             if (this.state === 'land') {
-                // Accumulate distance moved to track "3 steps"
                 this.landStepDistance += Math.abs(this.vx);
-                
-                // Transition out of land only if distance met or jumped
                 if (this.landStepDistance >= CONFIG.LAND_STEP_REQUIREMENT) {
                     this.state = isMovingActually ? (this.isRunning ? 'run' : 'walk') : 'idle';
                 }
@@ -411,12 +402,14 @@ class Player {
                 this.animTimer++;
                 const fps = this.isRunning ? CONFIG.RUN_ANIM_FPS : CONFIG.ANIM_FPS;
                 if (this.animTimer >= 60 / fps) {
-                    this.animFrame = (this.animFrame + 1) % 4; 
+                    const frameCount = this.isRunning ? 2 : 4;
+                    this.animFrame = (this.animFrame + 1) % frameCount; 
                     this.animTimer = 0;
                 }
             } 
             else {
                 this.state = 'idle';
+                this.animFrame = 0;
             }
         } else {
             if (Math.abs(this.vy) > 0.5) {
@@ -424,7 +417,6 @@ class Player {
             }
         }
 
-        // ITEM COLLECTION
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
@@ -455,19 +447,18 @@ class Player {
         let img = this.sprites.idle;
         let drawH = CONFIG.PLAYER_SCALED_HEIGHT;
 
-        // Visual State selection
         if (this.state === 'jump') {
             img = this.sprites.jump;
         } else if (this.state === 'land') {
             img = this.sprites.land;
             drawH = CONFIG.PLAYER_BASE_HEIGHT;
         } else if (this.state === 'run') {
-            const seq = [this.sprites.run1, this.sprites.run2, this.sprites.run1, this.sprites.run2];
-            img = seq[this.animFrame] || this.sprites.run1;
+            const seq = [this.sprites.run1, this.sprites.run2];
+            img = seq[this.animFrame % 2] || this.sprites.run1;
             drawH = CONFIG.PLAYER_RUN_HEIGHT;
         } else if (this.state === 'walk') {
             const seq = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
-            img = seq[this.animFrame] || this.sprites.idle;
+            img = seq[this.animFrame % 4] || this.sprites.idle;
         }
 
         if (this.direction === -1) {
@@ -479,18 +470,19 @@ class Player {
         const aspect = img.naturalWidth / img.naturalHeight;
         const drawW = drawH * aspect;
         const xOffset = (this.width - drawW) / 2;
-        
-        // Vertical alignment: All poses align their "feet" to the bottom of the bounding box
         const yOffset = CONFIG.PLAYER_SCALED_HEIGHT - drawH;
         
         ctx.drawImage(img, screenX + xOffset, this.y + yOffset, drawW, drawH);
 
         if (this.hasWings) {
-            ctx.font = "60px Arial"; 
-            ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 200) * 0.2;
+            ctx.font = "64px Arial"; 
+            ctx.globalAlpha = 0.85 + Math.sin(Date.now() / 150) * 0.1;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "gold";
             const wingY = this.y + 70 + yOffset;
             ctx.fillText("🪽", screenX - 45, wingY);
             ctx.fillText("🪽", screenX + this.width + 5, wingY);
+            ctx.shadowBlur = 0;
             ctx.globalAlpha = 1.0;
         }
         
@@ -594,7 +586,6 @@ class Game {
 
                 let altWidth = 320 + Math.random() * 280;
                 
-                // Platforms stacking logic: Lower is always wider
                 if (altY > mainY) {
                     if (altWidth < mainPlat.w) altWidth = mainPlat.w + 100;
                 } else {
@@ -700,11 +691,20 @@ class Game {
         this.ctx.textAlign = "center";
         for (let item of this.items) {
             if (!item.collected && item.x + 100 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
-                this.ctx.shadowBlur = 15;
+                // Uniformly higher visibility for both items
+                this.ctx.shadowBlur = 25;
                 this.ctx.shadowColor = item.type === 'key' ? "gold" : "cyan";
-                this.ctx.font = item.type === 'key' ? "45px Arial" : "65px Arial";
-                const bounce = Math.sin(Date.now() / 300) * 10;
+                
+                // Slightly larger keys than before (55px vs 45px)
+                this.ctx.font = item.type === 'key' ? "55px Arial" : "75px Arial";
+                
+                // Solid base alpha for both, with subtle breathing effect
+                this.ctx.globalAlpha = 0.95 + Math.sin(Date.now() / 200) * 0.05;
+                
+                const bounce = Math.sin(Date.now() / 300) * 15;
                 this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX, item.y + bounce);
+                
+                this.ctx.globalAlpha = 1.0;
                 this.ctx.shadowBlur = 0;
             }
         }
