@@ -182,8 +182,8 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fix: Forced Run animation cycle priority to resolve broken walk cycle overlaps.
- * Fix: Wing depth logic maintained while cleaning up state machine.
+ * Fix: Animation state machine overhaul to prevent "stuck" crouch/punch during walk cycle.
+ * Fix: Explicit separation of Walk assets (Walk1-3) vs Run assets (Run1-2).
  */
 
 const CONFIG = {
@@ -378,7 +378,6 @@ class Player {
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
         
-        // If movement stops, running state drops immediately
         if (!inputLeft && !inputRight) {
             this.isRunning = false;
         }
@@ -400,6 +399,7 @@ class Player {
     performPunch(bricks) {
         if (this.attackTimer > 0) return;
         const px = this.x + this.width / 2;
+        // Logic: Use Crouch Height ONLY if running OR explicitly punching
         const currentH = (this.isRunning && this.grounded) ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         const py = this.y + currentH + 20;
         for (let b of bricks) {
@@ -437,7 +437,7 @@ class Player {
         this.y += this.vy;
         
         let foundGround = false;
-        const isPunching = keys['ArrowDown'] || keys['s'];
+        const isPunching = (keys['ArrowDown'] || keys['s']) && this.grounded;
         const isKicking = keys['KickPressed'];
 
         const horizontalSpeed = Math.abs(this.vx);
@@ -445,11 +445,13 @@ class Player {
             this.isRunning = false;
         }
 
+        // Logic check: When walking, we are NOT low profile. 
+        // Only run-crouching or punching down creates the lower hitbox.
         const isLowProfile = (this.isRunning && this.grounded) || isPunching;
         let currentPhysHeight = isLowProfile ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         const hitboxPadding = 30;
 
-        if (isPunching && this.grounded) this.performPunch(bricks);
+        if (isPunching) this.performPunch(bricks);
         if (isKicking) this.performKick(bricks);
 
         for (let b of bricks) {
@@ -491,51 +493,54 @@ class Player {
             }
         }
 
-        // --- STRICT ANIMATION STATE LOGIC ---
-        let newState;
+        // --- REFACTORED STATE MACHINE ---
+        let newState = 'idle';
 
         if (!this.grounded) {
             newState = isKicking ? 'kick' : 'jump';
-        } else if (!wasGrounded) {
-            newState = 'land';
-            this.landTimer = 6;
-        } else if (this.landTimer > 0) {
-            newState = 'land';
-            this.landTimer--;
-        } else if (isKicking) {
-            newState = 'kick';
-        } else if (isPunching) {
-            newState = 'land';
-        } else if (this.isRunning && Math.abs(this.vx) > 2.0) {
-            // STRICT RUN PRIORITY: If we are running, nothing else (walk/idle) can take over
-            newState = 'run';
-        } else if (Math.abs(this.vx) > 0.5) {
-            newState = 'walk';
         } else {
-            newState = 'idle';
+            // Priority Grounded States
+            if (this.landTimer > 0) {
+                newState = 'land';
+                this.landTimer--;
+            } else if (!wasGrounded) {
+                newState = 'land';
+                this.landTimer = 6;
+            } else if (isKicking) {
+                newState = 'kick';
+            } else if (isPunching) {
+                newState = 'land'; // Punching uses land frame for the crouch look
+            } else if (horizontalSpeed > 1.5) {
+                // Determine if specifically running or walking based on current mode
+                newState = this.isRunning ? 'run' : 'walk';
+            } else if (horizontalSpeed > 0.2) {
+                newState = 'walk';
+            } else {
+                newState = 'idle';
+            }
         }
 
-        // Handle transitions
+        // Reset animation logic on state change
         if (this.state !== newState) {
             this.animFrame = 0;
             this.animTimer = 0;
+            this.state = newState;
         }
-        this.state = newState;
 
-        // Step animation cycles
+        // Animation Advance
         if (this.state === 'run') {
-            if (this.animTimer++ >= 4) { // Fast run speed
+            if (this.animTimer++ >= 4) {
                 this.animFrame = (this.animFrame + 1) % 2;
                 this.animTimer = 0;
             }
         } else if (this.state === 'walk') {
-            if (this.animTimer++ >= 6) {
-                this.animFrame = (this.animFrame + 1) % 4;
+            if (this.animTimer++ >= 8) { // Walk speed cycle
+                this.animFrame = (this.animFrame + 1) % 4; // 0: Idle, 1: Walk1, 2: Walk2, 3: Walk3
                 this.animTimer = 0;
             }
         }
 
-        // Items
+        // Items logic...
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
@@ -567,12 +572,17 @@ class Player {
         let targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
         let scaleFactor = 1.0;
 
-        // STRICT ASSET SELECTION
+        // ASSET MAPPING
         switch(this.state) {
             case 'run':
-                // ONLY use run1 and run2 when running
                 img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2;
                 targetDrawH = CONFIG.PLAYER_CROUCH_HEIGHT;
+                break;
+            case 'walk':
+                // Frame 0 of walk cycle is the Idle stance
+                const walkCycle = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk3];
+                img = walkCycle[this.animFrame % 4];
+                targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 break;
             case 'jump':
                 img = this.sprites.jump;
@@ -587,14 +597,11 @@ class Player {
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 scaleFactor = CONFIG.KICK_SCALE; 
                 break;
-            case 'walk':
-                const walkCycle = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk3];
-                img = walkCycle[this.animFrame % 4];
-                targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
-                break;
+            case 'idle':
             default:
                 img = this.sprites.idle;
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
+                break;
         }
 
         const aspectRatio = img.naturalWidth / img.naturalHeight;
@@ -606,7 +613,7 @@ class Player {
         const wingY = this.y + 70;
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
-        // Wing BEHIND
+        // Wing Depth Logic (Behind)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -623,7 +630,7 @@ class Player {
             ctx.restore();
         }
 
-        // Player Sprite
+        // Character Draw
         ctx.save();
         if (this.direction === -1) {
             ctx.translate(screenX + (finalDrawW / 2), 0);
@@ -633,7 +640,7 @@ class Player {
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
         ctx.restore();
 
-        // Wing IN FRONT
+        // Wing Depth Logic (Front)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
