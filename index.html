@@ -165,7 +165,7 @@
             <span style="font-size: 3rem; filter: drop-shadow(0 0 10px gold);">🪽</span>
             <div>
                 <div style="font-size: 1.4rem; font-weight: bold; color: var(--ui-gold); letter-spacing: 1px;">AERIAL ASCENSION</div>
-                <div style="font-size: 0.9rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Double Jump Online</div>
+                <div style="font-size: 0.9rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Triple Jump Online</div>
             </div>
         </div>
     </div>
@@ -199,7 +199,10 @@ const CONFIG = {
     LEVEL_LENGTH: 30,
     PARALLAX_FACTOR: 0.3,
     PLAYER_BASE_HEIGHT: 206,      
-    PLAYER_CROUCH_HEIGHT: 154, 
+    PLAYER_CROUCH_HEIGHT: 154,
+    PLAYER_RUN_HEIGHT: 193,       // 125% of PLAYER_CROUCH_HEIGHT (154 * 1.25)
+    PLAYER_PHYS_HEIGHT: 120,      // 2 bricks — vertical clearance for L/R movement
+    PLAYER_PHYS_WIDTH: 60,        // 1 brick  — horizontal clearance for U/D movement
     REQUIRED_KEYS: 25,
     MIN_HEAD_CLEARANCE: 260, 
     MAX_JUMP_REACH: 440,
@@ -288,7 +291,7 @@ class Player {
         this.width = 108;
         this.keysCollected = 0;
         this.hasWings = false;
-        this.canDoubleJump = false;
+        this.extraJumps = 0;
         this.assetsLoaded = false;
         this.sprites = {};
         this.animFrame = 0;
@@ -339,7 +342,7 @@ class Player {
 
     spawnAt(x, y) {
         this.x = x;
-        this.y = y - CONFIG.PLAYER_BASE_HEIGHT; 
+        this.y = y - CONFIG.PLAYER_PHYS_HEIGHT;
         this.vx = 0;
         this.vy = 0;
         this.grounded = true;
@@ -358,7 +361,7 @@ class Player {
         this.animTimer = 0;
         this.keysCollected = 0;
         this.hasWings = false;
-        this.canDoubleJump = false;
+        this.extraJumps = 0;
         this.attackTimer = 0;
         this.landTimer = 0;
         this.groundedFrames = 0;
@@ -401,9 +404,7 @@ class Player {
     performPunch(bricks) {
         if (this.attackTimer > 0) return;
         const px = this.x + this.width / 2;
-        // Logic: Use Crouch Height ONLY if running OR explicitly punching
-        const currentH = (this.isRunning && this.grounded) ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
-        const py = this.y + currentH + 20;
+        const py = this.y + CONFIG.PLAYER_PHYS_HEIGHT + 20;
         for (let b of bricks) {
             if (!b.destroyed && px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h + 20) {
                 b.damage();
@@ -416,8 +417,7 @@ class Player {
     performKick(bricks) {
         if (this.attackTimer > 0) return;
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
-        const currentH = (this.isRunning && this.grounded) ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
-        const ky = this.y + currentH / 2;
+        const ky = this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2;
         for (let b of bricks) {
             if (!b.destroyed && kx > b.x && kx < b.x + b.w && ky > b.y && ky < b.y + b.h) {
                 b.damage();
@@ -447,36 +447,34 @@ class Player {
             this.isRunning = false;
         }
 
-        // Logic check: When walking, we are NOT low profile. 
-        // Only run-crouching or punching down creates the lower hitbox.
-        const isLowProfile = (this.isRunning && this.grounded) || isPunching;
-        let currentPhysHeight = isLowProfile ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
-        const hitboxPadding = 30;
+        // Fixed physics hitbox: 1 brick wide (60px), 2 bricks tall (120px)
+        const physH = CONFIG.PLAYER_PHYS_HEIGHT;
+        const physPad = Math.max(0, (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2);
 
         if (isPunching) this.performPunch(bricks);
         if (isKicking) this.performKick(bricks);
 
         for (let b of bricks) {
             if (b.destroyed) continue;
-            if (this.x + hitboxPadding < b.x + b.w && this.x + this.width - hitboxPadding > b.x &&
-                this.y < b.y + b.h && this.y + currentPhysHeight > b.y) {
+            if (this.x + physPad < b.x + b.w && this.x + this.width - physPad > b.x &&
+                this.y < b.y + b.h && this.y + physH > b.y) {
                 
-                if (this.vy >= 0 && this.y + currentPhysHeight - this.vy <= b.y + 35) {
-                    this.y = b.y - currentPhysHeight;
+                if (this.vy >= 0 && this.y + physH - this.vy <= b.y + 35) {
+                    this.y = b.y - physH;
                     this.vy = 0;
                     foundGround = true;
-                    if (this.hasWings) this.canDoubleJump = true;
+                    if (this.hasWings) this.extraJumps = 2;
                 } else if (this.vy < 0 && this.y - this.vy >= b.y + b.h - 35) {
                     this.y = b.y + b.h;
                     this.vy = 0;
                     b.damage();
                     const mouthX = this.direction === 1 ? this.x + this.width - 20 : this.x + 20;
                     this.game.addParticle(mouthX, this.y + 40, "Ow!");
-                } else if (this.vx > 0 && this.x + this.width - hitboxPadding <= b.x + 20) {
-                    this.x = b.x - this.width + hitboxPadding;
+                } else if (this.vx > 0 && this.x + this.width - physPad <= b.x + 20) {
+                    this.x = b.x - this.width + physPad;
                     this.vx = 0;
-                } else if (this.vx < 0 && this.x + hitboxPadding >= b.x + b.w - 20) {
-                    this.x = b.x + b.w - hitboxPadding;
+                } else if (this.vx < 0 && this.x + physPad >= b.x + b.w - 20) {
+                    this.x = b.x + b.w - physPad;
                     this.vx = 0;
                 }
             }
@@ -494,9 +492,9 @@ class Player {
         if (this.grounded) this.airFrames = 0;
 
         if (keys['JumpPressed']) {
-            if (this.grounded || (this.hasWings && this.canDoubleJump)) {
+            if (this.grounded || (this.hasWings && this.extraJumps > 0)) {
                 this.vy = this.grounded ? -CONFIG.JUMP_FORCE : -CONFIG.JUMP_FORCE * 0.95;
-                if (!this.grounded) this.canDoubleJump = false;
+                if (!this.grounded) this.extraJumps--;
                 this.grounded = false;
                 keys['JumpPressed'] = false;
             }
@@ -562,12 +560,12 @@ class Player {
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
-                this.y < item.y + 60 && this.y + currentPhysHeight > item.y) {
+                this.y < item.y + 60 && this.y + physH > item.y) {
                 item.collected = true;
                 if (item.type === 'key') this.keysCollected++;
                 else if (item.type === 'wings') {
                     this.hasWings = true;
-                    this.canDoubleJump = true;
+                    this.extraJumps = 2;
                 }
                 this.updateUI();
             }
@@ -594,7 +592,7 @@ class Player {
         switch(this.state) {
             case 'run':
                 img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2;
-                targetDrawH = CONFIG.PLAYER_CROUCH_HEIGHT;
+                targetDrawH = CONFIG.PLAYER_RUN_HEIGHT;
                 break;
             case 'walk':
                 // Frame 0 of walk cycle is the Idle stance
@@ -627,7 +625,8 @@ class Player {
         let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
         this.width = targetDrawH * aspectRatio;
 
-        let yDrawOffset = (targetDrawH - finalDrawH); 
+        // Anchor sprite bottom to physics box bottom (this.y + PLAYER_PHYS_HEIGHT = ground level)
+        let yDrawOffset = CONFIG.PLAYER_PHYS_HEIGHT - finalDrawH;
         const wingY = this.y + 70;
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
@@ -639,11 +638,13 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             if (this.direction === 1) {
+                // Facing right: right wing goes behind
+                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
+            } else {
+                // Facing left: left wing goes behind
                 ctx.translate(screenX - 45 + 32, wingY - 32);
                 ctx.scale(-1, 1);
                 ctx.fillText("🪽", -32, 32);
-            } else {
-                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
             }
             ctx.restore();
         }
@@ -666,11 +667,13 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             if (this.direction === 1) {
-                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
-            } else {
+                // Facing right: left wing comes in front
                 ctx.translate(screenX - 45 + 32, wingY - 32);
                 ctx.scale(-1, 1);
                 ctx.fillText("🪽", -32, 32);
+            } else {
+                // Facing left: right wing comes in front
+                ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
             }
             ctx.restore();
         }
@@ -798,10 +801,9 @@ class Game {
         let targetCam = this.player.x - (CONFIG.INTERNAL_WIDTH / 3);
         this.cameraX += (targetCam - this.cameraX) * 0.1;
         this.cameraX = Math.max(0, this.cameraX);
-        const playerH = (this.player.isRunning && this.player.grounded) ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         if (this.player.x + this.player.width > this.exit.x && 
             this.player.x < this.exit.x + this.exit.w &&
-            this.player.y + playerH > this.exit.y &&
+            this.player.y + CONFIG.PLAYER_PHYS_HEIGHT > this.exit.y &&
             this.player.y < this.exit.y + this.exit.h) {
             if (this.player.keysCollected >= CONFIG.REQUIRED_KEYS) this.completeLevel();
         }
