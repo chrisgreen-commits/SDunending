@@ -183,13 +183,14 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Updates:
- * - Platform Color: Lighter "Cement Grey" for better visibility.
- * - Proportional Scaling: No stretching or squashing.
- * - Dynamic Heights: Run and Land cycles are 75% of base height.
+ * - Removed automatic landing lag.
+ * - Added "Fast Fall" mechanic: Hold S/Down in air to drop twice as fast.
+ * - Landing animation now only triggers while holding Down on impact.
  */
 
 const CONFIG = {
     GRAVITY: 0.45,
+    FAST_FALL_MULTIPLIER: 2.0,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
     RUN_SPEED: 1.8,
@@ -205,7 +206,6 @@ const CONFIG = {
     REQUIRED_KEYS: 25,
     MIN_HEAD_CLEARANCE: 260, 
     MAX_JUMP_REACH: 440,
-    LAND_STEP_REQUIREMENT: 320,
     PLATFORM_COLOR: '#8d9196',
     PLATFORM_HIGHLIGHT: '#b0b4b9'
 };
@@ -228,7 +228,6 @@ class Player {
         this.animFrame = 0;
         this.animTimer = 0;
         this.state = 'idle';
-        this.landStepDistance = 0;
         this.lastTapTime = 0;
         this.lastTapKey = null;
         this.isRunning = false;
@@ -291,7 +290,6 @@ class Player {
         this.keysCollected = 0;
         this.hasWings = false;
         this.canDoubleJump = false;
-        this.landStepDistance = 0;
         this.updateUI();
     }
 
@@ -332,19 +330,25 @@ class Player {
 
     update(platforms, items) {
         let wasGrounded = this.grounded;
-        let lastVy = this.vy;
         
         this.handleInput();
 
         this.vx *= CONFIG.FRICTION;
         this.x += this.vx;
 
-        this.vy += CONFIG.GRAVITY;
+        // Apply Gravity with Fast Fall mechanic
+        const isCrouching = keys['ArrowDown'] || keys['s'];
+        const gravityEffect = isCrouching && !this.grounded ? CONFIG.GRAVITY * CONFIG.FAST_FALL_MULTIPLIER : CONFIG.GRAVITY;
+        
+        this.vy += gravityEffect;
         this.y += this.vy;
         
         let foundGround = false;
         
-        let currentPhysHeight = (this.state === 'run' || this.state === 'land') ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
+        // Determine physical height for collision
+        // We use crouch height if either running or holding 'down'
+        const isLowProfile = this.state === 'run' || isCrouching;
+        let currentPhysHeight = isLowProfile ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         const hitboxPadding = 30;
 
         for (let p of platforms) {
@@ -373,30 +377,23 @@ class Player {
 
         this.grounded = foundGround;
 
+        // Jump Handling
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.canDoubleJump)) {
                 this.vy = this.grounded ? -CONFIG.JUMP_FORCE : -CONFIG.JUMP_FORCE * 0.95;
                 if (!this.grounded) this.canDoubleJump = false;
                 this.grounded = false;
                 this.state = 'jump';
-                this.landStepDistance = 0; 
                 keys['JumpPressed'] = false;
             }
         }
 
+        // State Machine for Animations
         if (this.grounded) {
             const isMovingActually = Math.abs(this.vx) > 1.5;
 
-            if (!wasGrounded && lastVy > 3.0) {
-                this.state = 'land';
-                this.landStepDistance = 0;
-            } 
-            
-            if (this.state === 'land') {
-                this.landStepDistance += Math.abs(this.vx) + 8;
-                if (this.landStepDistance >= CONFIG.LAND_STEP_REQUIREMENT) {
-                    this.state = isMovingActually ? (this.isRunning ? 'run' : 'walk') : 'idle';
-                }
+            if (isCrouching) {
+                this.state = 'land'; // Using "Land" as the crouch/impact state
             } 
             else if (isMovingActually) {
                 if (this.isRunning) {
@@ -419,11 +416,10 @@ class Player {
                 this.isRunning = false;
             }
         } else {
-            if (this.state !== 'land' && Math.abs(this.vy) > 0.5) {
-                this.state = 'jump';
-            }
+            this.state = 'jump';
         }
 
+        // Item Collection
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
@@ -439,6 +435,7 @@ class Player {
             }
         }
 
+        // Death / Bounds Check
         if (this.y > CONFIG.INTERNAL_HEIGHT + 400) {
             const firstPlat = platforms[0];
             this.spawnAt(firstPlat.x + 100, firstPlat.y);
@@ -487,6 +484,7 @@ class Player {
             ctx.translate(-(screenX + targetDrawW / 2), 0);
         }
 
+        // Vertical adjustment to keep player on ground
         const yOffset = (this.state === 'run' || this.state === 'land') ? 
                         CONFIG.PLAYER_CROUCH_HEIGHT - targetDrawH : 
                         CONFIG.PLAYER_BASE_HEIGHT - targetDrawH;
@@ -607,13 +605,6 @@ class Game {
                 }
 
                 let altWidth = 320 + Math.random() * 280;
-                
-                if (altY > mainY) {
-                    if (altWidth < mainPlat.w) altWidth = mainPlat.w + 100;
-                } else {
-                    if (mainPlat.w < altWidth) mainPlat.w = altWidth + 100;
-                }
-
                 this.platforms.push({ x: lastX + gap + 40, y: altY, w: altWidth, h: 40 });
                 
                 if (keysPlaced < CONFIG.REQUIRED_KEYS) {
@@ -702,15 +693,10 @@ class Game {
 
         for (let p of this.platforms) {
             if (p.x + p.w > this.cameraX && p.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
-                // Platform base - Cement Grey
                 this.ctx.fillStyle = CONFIG.PLATFORM_COLOR;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, p.h);
-                
-                // Top highlight
                 this.ctx.fillStyle = CONFIG.PLATFORM_HIGHLIGHT;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 4);
-                
-                // Add some structural depth
                 this.ctx.fillStyle = "rgba(0,0,0,0.2)";
                 this.ctx.fillRect(p.x - this.cameraX, p.y + p.h - 4, p.w, 4);
             }
