@@ -12,6 +12,7 @@
             --danger: #ff4d4d;
             --platform-grey: #8d9196;
             --platform-highlight: #b0b4b9;
+            --caffeine: #ff8c00;
         }
         body, html {
             margin: 0;
@@ -78,26 +79,38 @@
             align-items: center;
             gap: 15px;
         }
-        .hud-powerup {
+        .powerup-container {
             position: absolute;
             bottom: 40px;
             left: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .hud-powerup {
             background: var(--ui-bg);
-            padding: 20px 30px;
+            padding: 15px 25px;
             border-radius: 8px;
             display: flex;
             align-items: center;
             gap: 20px;
             opacity: 0;
-            transform: translateY(30px);
+            transform: translateY(20px);
             transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border: 2px solid transparent;
+            min-width: 300px;
         }
         .hud-powerup.active {
             opacity: 1;
             transform: translateY(0);
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+        }
+        #wing-indicator.active {
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
             border: 2px solid var(--ui-gold);
+        }
+        #caffeine-indicator.active {
+            box-shadow: 0 0 30px rgba(255, 140, 0, 0.4);
+            border: 2px solid var(--caffeine);
         }
 
         #watermark {
@@ -182,11 +195,21 @@
             <div id="key-counter">🔑 <span id="keys-found">0</span> / 25</div>
         </div>
 
-        <div class="hud-powerup" id="wing-indicator">
-            <span style="font-size: 3rem; filter: drop-shadow(0 0 10px gold);">🪽</span>
-            <div>
-                <div style="font-size: 1.4rem; font-weight: bold; color: var(--ui-gold); letter-spacing: 1px;">AERIAL ASCENSION</div>
-                <div style="font-size: 0.9rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Triple Jump Online</div>
+        <div class="powerup-container">
+            <div class="hud-powerup" id="caffeine-indicator">
+                <span style="font-size: 2.5rem; filter: drop-shadow(0 0 10px #ff8c00);">☕</span>
+                <div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: var(--caffeine); letter-spacing: 1px;">CAFFEINE OVERDRIVE</div>
+                    <div style="font-size: 0.8rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Speed Multiplier: 2.0x</div>
+                </div>
+            </div>
+
+            <div class="hud-powerup" id="wing-indicator">
+                <span style="font-size: 2.5rem; filter: drop-shadow(0 0 10px gold);">🪽</span>
+                <div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: var(--ui-gold); letter-spacing: 1px;">AERIAL ASCENSION</div>
+                    <div style="font-size: 0.8rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Triple Jump Online</div>
+                </div>
             </div>
         </div>
     </div>
@@ -204,7 +227,6 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Version: 0.01
- * Updates: Kick animations extended forward from body back-edge. Version moved to top-center.
  */
 
 const CONFIG = {
@@ -234,7 +256,7 @@ const CONFIG = {
     PLATFORM_COLOR: '#8d9196',
     PLATFORM_HIGHLIGHT: '#b0b4b9',
     KICK_SCALE: 1.25,
-    LOW_KICK_SCALE: 0.75 
+    LOW_KICK_SCALE: 1.125 // Increased by 150% from 0.75
 };
 
 const LEVELS = [
@@ -244,10 +266,11 @@ const LEVELS = [
 ];
 
 class Particle {
-    constructor(x, y, text) {
+    constructor(x, y, text, color = "white") {
         this.x = x;
         this.y = y;
         this.text = text;
+        this.color = color;
         this.life = 60;
         this.vy = -1.5;
         this.opacity = 1.0;
@@ -260,7 +283,7 @@ class Particle {
     draw(ctx, cameraX) {
         ctx.save();
         ctx.globalAlpha = this.opacity;
-        ctx.fillStyle = "white";
+        ctx.fillStyle = this.color;
         ctx.font = "bold 24px Courier New";
         ctx.shadowBlur = 4;
         ctx.shadowColor = "black";
@@ -293,17 +316,6 @@ class Brick {
         ctx.strokeStyle = CONFIG.PLATFORM_HIGHLIGHT;
         ctx.lineWidth = 2;
         ctx.strokeRect(screenX + 2, this.y + 2, this.w - 4, this.h - 4);
-        if (this.health < CONFIG.BRICK_HEALTH) {
-            ctx.beginPath();
-            ctx.strokeStyle = "rgba(0,0,0,0.5)";
-            ctx.moveTo(screenX + 10, this.y + 10);
-            ctx.lineTo(screenX + 40, this.y + 40);
-            if (this.health === 1) {
-                ctx.moveTo(screenX + 50, this.y + 10);
-                ctx.lineTo(screenX + 10, this.y + 50);
-            }
-            ctx.stroke();
-        }
     }
 }
 
@@ -311,9 +323,10 @@ class Player {
     constructor(game) {
         this.game = game;
         this.baseHeight = CONFIG.PLAYER_BASE_HEIGHT;
-        this.width = 108; // Estimated initial
+        this.width = 108; 
         this.keysCollected = 0;
         this.hasWings = false;
+        this.hasCoffee = false;
         this.extraJumps = 0;
         this.assetsLoaded = false;
         this.sprites = {};
@@ -363,7 +376,6 @@ class Player {
         this.sprites = Object.fromEntries(results);
         this.assetsLoaded = true;
         
-        // Finalize idle width once loaded
         const idleImg = this.sprites.idle;
         this.width = (CONFIG.PLAYER_BASE_HEIGHT * (idleImg.naturalWidth / idleImg.naturalHeight));
     }
@@ -389,6 +401,7 @@ class Player {
         this.animTimer = 0;
         this.keysCollected = 0;
         this.hasWings = false;
+        this.hasCoffee = false;
         this.extraJumps = 0;
         this.attackTimer = 0;
         this.landTimer = 0;
@@ -400,10 +413,17 @@ class Player {
     updateUI() {
         const keySpan = document.getElementById('keys-found');
         if(keySpan) keySpan.innerText = this.keysCollected;
+        
         const wingInd = document.getElementById('wing-indicator');
         if(wingInd) {
             if(this.hasWings) wingInd.classList.add('active');
             else wingInd.classList.remove('active');
+        }
+
+        const coffeeInd = document.getElementById('caffeine-indicator');
+        if(coffeeInd) {
+            if(this.hasCoffee) coffeeInd.classList.add('active');
+            else coffeeInd.classList.remove('active');
         }
     }
 
@@ -418,7 +438,6 @@ class Player {
             if (gp.axes[0] > 0.3) gpRight = true;
             if (gp.buttons[14].pressed) gpLeft = true;
             if (gp.buttons[15].pressed) gpRight = true;
-            
             if (gp.buttons[0].pressed) keys['JumpPressed'] = true; 
             if (gp.buttons[2].pressed) keys['KickPressed'] = true; 
             if (gp.buttons[7].pressed) keys['LowKickPressed'] = true; 
@@ -428,8 +447,10 @@ class Player {
             this.isRunning = false;
         }
 
-        const accel = this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED;
-        const max = this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED;
+        // Coffee 2x multiplier
+        const speedMult = this.hasCoffee ? 2.0 : 1.0;
+        const accel = (this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED) * speedMult;
+        const max = (this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED) * speedMult;
 
         if (inputRight || gpRight) {
             this.vx += accel;
@@ -457,12 +478,8 @@ class Player {
 
     performKick(bricks, isLow = false) {
         if (this.attackTimer > 0) return;
-        
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
-        const ky = isLow ? 
-                  (this.y + CONFIG.PLAYER_PHYS_HEIGHT - 30) : 
-                  (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);   
-        
+        const ky = isLow ? (this.y + CONFIG.PLAYER_PHYS_HEIGHT - 30) : (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);   
         for (let b of bricks) {
             if (!b.destroyed && kx > b.x && kx < b.x + b.w && ky > b.y && ky < b.y + b.h) {
                 b.damage();
@@ -490,9 +507,7 @@ class Player {
         const isLowKick = keys['LowKickPressed'];
 
         const horizontalSpeed = Math.abs(this.vx);
-        if (horizontalSpeed < 1.0) {
-            this.isRunning = false;
-        }
+        if (horizontalSpeed < 1.0) this.isRunning = false;
 
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
         const physPad = Math.max(0, (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2);
@@ -538,18 +553,16 @@ class Player {
         }
 
         this.grounded = foundGround;
-        if (this.grounded) {
-            this.groundedFrames++;
-        } else {
-            this.groundedFrames = 0;
-            this.airFrames++;
-        }
+        if (this.grounded) this.groundedFrames++;
+        else { this.groundedFrames = 0; this.airFrames++; }
+        
         const wasGenuinelyAirborne = this.airFrames > 3;
         if (this.grounded) this.airFrames = 0;
 
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.extraJumps > 0)) {
-                this.vy = this.grounded ? -CONFIG.JUMP_FORCE : -CONFIG.JUMP_FORCE * 0.95;
+                const jumpMult = this.hasCoffee ? 1.2 : 1.0; // Bonus height for coffee
+                this.vy = this.grounded ? -CONFIG.JUMP_FORCE * jumpMult : -CONFIG.JUMP_FORCE * 0.95 * jumpMult;
                 if (!this.grounded) this.extraJumps--;
                 this.grounded = false;
                 keys['JumpPressed'] = false;
@@ -558,33 +571,21 @@ class Player {
 
         let newState = 'idle';
         if (!this.grounded) {
-            if (this.airFrames > 3) {
-                newState = (isKicking || isLowKick) ? 'kick' : 'jump';
-            } else {
+            if (this.airFrames > 3) newState = (isKicking || isLowKick) ? 'kick' : 'jump';
+            else {
                 if (horizontalSpeed > 1.5) newState = this.isRunning ? 'run' : 'walk';
                 else if (horizontalSpeed > 0.8) newState = 'walk';
                 else newState = 'idle';
             }
         } else {
-            if (this.landTimer > 0) {
-                newState = 'land';
-                this.landTimer--;
-            } else if (!wasGrounded && wasGenuinelyAirborne) {
-                newState = 'land';
-                this.landTimer = 6;
-            } else if (isLowKick) {
-                newState = 'kickLow';
-            } else if (isKicking) {
-                newState = (isHoldingDown && this.grounded) ? 'kickLow' : 'kick';
-            } else if (isPunching) {
-                newState = 'land'; 
-            } else if (horizontalSpeed > 1.5) {
-                newState = this.isRunning ? 'run' : 'walk';
-            } else if (horizontalSpeed > 0.8) {
-                newState = 'walk';
-            } else {
-                newState = 'idle';
-            }
+            if (this.landTimer > 0) { newState = 'land'; this.landTimer--; }
+            else if (!wasGrounded && wasGenuinelyAirborne) { newState = 'land'; this.landTimer = 6; }
+            else if (isLowKick) newState = 'kickLow';
+            else if (isKicking) newState = (isHoldingDown && this.grounded) ? 'kickLow' : 'kick';
+            else if (isPunching) newState = 'land'; 
+            else if (horizontalSpeed > 1.5) newState = this.isRunning ? 'run' : 'walk';
+            else if (horizontalSpeed > 0.8) newState = 'walk';
+            else newState = 'idle';
         }
 
         if (this.state !== newState) {
@@ -593,14 +594,15 @@ class Player {
             this.state = newState;
         }
 
+        const animSpeedMult = this.hasCoffee ? 2.0 : 1.0;
         if (this.state === 'run') {
-            if (this.animTimer++ >= 4) {
+            if (this.animTimer++ >= 4 / animSpeedMult) {
                 this.animFrame = (this.animFrame + 1) % 2;
                 this.animTimer = 0;
             }
         } else if (this.state === 'walk') {
-            if (this.animTimer++ >= 8) { 
-                this.animFrame = (this.animFrame + 1) % 4; 
+            if (this.animTimer++ >= 8 / animSpeedMult) { 
+                this.animFrame = (this.animFrame + 1) % 2; // Only 2 frames now
                 this.animTimer = 0;
             }
         }
@@ -614,6 +616,10 @@ class Player {
                 else if (item.type === 'wings') {
                     this.hasWings = true;
                     this.extraJumps = 2;
+                    this.game.addParticle(this.x, this.y, "Aerial Ascension!", "gold");
+                } else if (item.type === 'coffee') {
+                    this.hasCoffee = true;
+                    this.game.addParticle(this.x, this.y, "Caffeine Rush!", "#ff8c00");
                 }
                 this.updateUI();
             }
@@ -635,7 +641,6 @@ class Player {
         let targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
         let scaleFactor = 1.0;
 
-        // Get the width of the idle/body graphic to use as a "stable" anchor
         const idleImg = this.sprites.idle;
         const idleW = (CONFIG.PLAYER_BASE_HEIGHT * (idleImg.naturalWidth / idleImg.naturalHeight));
         
@@ -645,8 +650,8 @@ class Player {
                 targetDrawH = CONFIG.PLAYER_RUN_HEIGHT;
                 break;
             case 'walk':
-                const walkCycle = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk3];
-                img = walkCycle[this.animFrame % 4];
+                // JUST Walk1 and Walk2 cycle
+                img = this.animFrame === 0 ? this.sprites.walk1 : this.sprites.walk2;
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 break;
             case 'jump':
@@ -667,33 +672,19 @@ class Player {
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 scaleFactor = CONFIG.LOW_KICK_SCALE;
                 break;
-            case 'idle':
             default:
                 img = this.sprites.idle;
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
-                break;
         }
 
         const aspectRatio = img.naturalWidth / img.naturalHeight;
         let finalDrawH = targetDrawH * scaleFactor;
         let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
-        
-        // Calculate stable horizontal positioning
-        // x is the physical anchor point. 
-        // We want the "back" of the character to stay in place relative to this.x
         let screenX = this.x - cameraX;
         
-        // If kicking, we adjust the position so the leg extends forward 
-        // while the "back" edge of the sprite aligns with where the back of idle would be.
+        // Handle kick "forward extension" logic
         if (this.state === 'kick' || this.state === 'kickLow') {
-            if (this.direction === 1) {
-                // Facing Right: Back edge is screenX. Sprite should draw at screenX.
-                // No adjustment needed if the kick sprite has her back at the left edge of image.
-            } else {
-                // Facing Left: Back edge is screenX + idleW. 
-                // We need the right-edge of the (flipped) kick sprite to align with screenX + idleW.
-                // Drawing at screenX would put the back edge at screenX + finalDrawW.
-                // So we offset by -(finalDrawW - idleW)
+            if (this.direction === -1) {
                 screenX -= (finalDrawW - idleW);
             }
         }
@@ -770,7 +761,7 @@ class Game {
         window.addEventListener('resize', () => this.handleResize());
         this.start();
     }
-    addParticle(x, y, text) { this.particles.push(new Particle(x, y, text)); }
+    addParticle(x, y, text, color) { this.particles.push(new Particle(x, y, text, color)); }
     handleResize() {
         const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
         this.wrapper.style.transform = `scale(${scale})`;
@@ -818,44 +809,42 @@ class Game {
         this.bricks = [];
         this.items = [];
         this.createPlatform(0, 800, 900, 400);
-        let lastX = 800, lastY = 800, keysPlaced = 0, wingsPlaced = false;
+        let lastX = 800, lastY = 800, keysPlaced = 0, wingsPlaced = false, coffeePlaced = false;
+        
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
             let gap = 180 + Math.random() * 120, width = 420 + Math.random() * 420;
             let diff = (Math.random() - 0.5) * 350;
             let mainY = Math.max(250, Math.min(850, lastY + diff));
             if (mainY < lastY - CONFIG.MAX_JUMP_REACH) mainY = lastY - CONFIG.MAX_JUMP_REACH;
             this.createPlatform(lastX + gap, mainY, width, 60);
-            if (Math.random() > 0.6) this.createPlatform(lastX + gap + (width/3), mainY - 300, 60, 300);
+
+            // Item placement
             if (Math.random() > 0.45) {
                 let altYOffset = CONFIG.MIN_HEAD_CLEARANCE + 60 + (Math.random() * 80);
                 let altY = Math.max(120, Math.min(940, mainY + (Math.random() > 0.5 ? altYOffset : -altYOffset)));
                 let altWidth = 320 + Math.random() * 280;
                 this.createPlatform(lastX + gap + 40, altY, altWidth, 60);
+                
                 if (keysPlaced < CONFIG.REQUIRED_KEYS) {
                     this.items.push({ x: lastX + gap + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
                     keysPlaced++;
                 }
-                if (!wingsPlaced && i > 3 && Math.random() > 0.65) {
+                if (!wingsPlaced && i > 3 && Math.random() > 0.7) {
                     this.items.push({ x: lastX + gap + 150, y: altY - 100, type: 'wings', collected: false });
                     wingsPlaced = true;
                 }
-            } else {
-                if (keysPlaced < CONFIG.REQUIRED_KEYS && Math.random() > 0.5) {
-                    this.items.push({ x: lastX + gap + width/2, y: mainY - 80, type: 'key', collected: false });
-                    keysPlaced++;
+                if (!coffeePlaced && i > 6 && Math.random() > 0.8) {
+                    this.items.push({ x: lastX + gap + 250, y: altY - 100, type: 'coffee', collected: false });
+                    coffeePlaced = true;
                 }
             }
             lastX += gap + width; lastY = mainY;
         }
-        if (!wingsPlaced) {
-            let p = this.bricks[Math.floor(this.bricks.length / 2)];
-            this.items.push({ x: p.x, y: p.y - 120, type: 'wings', collected: false });
-        }
-        while (keysPlaced < CONFIG.REQUIRED_KEYS) {
-            let p = this.bricks[Math.floor(Math.random() * this.bricks.length)];
-            this.items.push({ x: p.x, y: p.y - 80, type: 'key', collected: false });
-            keysPlaced++;
-        }
+
+        // Ensure powerups exist
+        if (!wingsPlaced) this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
+        if (!coffeePlaced) this.items.push({ x: lastX - 1000, y: 400, type: 'coffee', collected: false });
+
         this.exit.x = lastX + 150; this.exit.y = lastY - 220;
         this.createPlatform(lastX, lastY, 900, 400);
     }
@@ -876,16 +865,11 @@ class Game {
             if (this.player.keysCollected >= CONFIG.REQUIRED_KEYS) this.completeLevel();
         }
     }
-    completeLevel() {
-        this.isPaused = true;
-        document.getElementById('message-overlay').style.display = 'flex';
-    }
-    nextLevel() {
-        this.currentLevelIndex++;
-        if (this.currentLevelIndex >= LEVELS.length) this.currentLevelIndex = 0;
-        this.initLevel();
-    }
-    drawBackground() {
+    completeLevel() { this.isPaused = true; document.getElementById('message-overlay').style.display = 'flex'; }
+    nextLevel() { this.currentLevelIndex++; if (this.currentLevelIndex >= LEVELS.length) this.currentLevelIndex = 0; this.initLevel(); }
+    
+    draw() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         const level = LEVELS[this.currentLevelIndex];
         const bgImg = this.backgrounds[level.bg];
         if (bgImg) {
@@ -899,24 +883,20 @@ class Game {
             this.ctx.fillStyle = level.color;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         }
-    }
-    draw() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.drawBackground();
-        for (let b of this.bricks) {
-            if (b.x + b.w > this.cameraX && b.x < this.cameraX + CONFIG.INTERNAL_WIDTH) b.draw(this.ctx, this.cameraX);
-        }
+
+        for (let b of this.bricks) if (b.x + b.w > this.cameraX && b.x < this.cameraX + CONFIG.INTERNAL_WIDTH) b.draw(this.ctx, this.cameraX);
+        
         this.ctx.textAlign = "center";
         for (let item of this.items) {
             if (!item.collected && item.x + 100 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.shadowBlur = 25;
-                this.ctx.shadowColor = item.type === 'key' ? "gold" : "cyan";
-                this.ctx.font = item.type === 'key' ? "55px Arial" : "75px Arial";
-                const bounce = Math.sin(Date.now() / 300) * 15;
-                this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX, item.y + bounce);
+                if (item.type === 'key') { this.ctx.shadowColor = "gold"; this.ctx.font = "55px Arial"; this.ctx.fillText("🔑", item.x - this.cameraX, item.y + Math.sin(Date.now() / 300) * 15); }
+                else if (item.type === 'wings') { this.ctx.shadowColor = "cyan"; this.ctx.font = "75px Arial"; this.ctx.fillText("🪽", item.x - this.cameraX, item.y + Math.sin(Date.now() / 300) * 15); }
+                else if (item.type === 'coffee') { this.ctx.shadowColor = "#ff8c00"; this.ctx.font = "65px Arial"; this.ctx.fillText("☕", item.x - this.cameraX, item.y + Math.sin(Date.now() / 300) * 15); }
                 this.ctx.shadowBlur = 0;
             }
         }
+        
         const ready = this.player.keysCollected >= CONFIG.REQUIRED_KEYS;
         this.ctx.fillStyle = ready ? "rgba(0, 255, 127, 0.3)" : "rgba(255, 0, 0, 0.2)";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
@@ -928,11 +908,7 @@ class Game {
         this.player.draw(this.ctx, this.cameraX);
         for (let p of this.particles) p.draw(this.ctx, this.cameraX);
     }
-    loop() {
-        this.update();
-        this.draw();
-        requestAnimationFrame(() => this.loop());
-    }
+    loop() { this.update(); this.draw(); requestAnimationFrame(() => this.loop()); }
 }
 
 const keys = {};
@@ -940,11 +916,8 @@ window.addEventListener('keydown', e => {
     const now = Date.now(), key = e.key.toLowerCase();
     const isMoveKey = (key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft');
     if (isMoveKey && !keys[key]) {
-        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
-            game.player.isRunning = true;
-        }
-        game.player.lastTapTime = now; 
-        game.player.lastTapKey = key;
+        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) game.player.isRunning = true;
+        game.player.lastTapTime = now; game.player.lastTapKey = key;
     }
     keys[key] = true;
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = true;
