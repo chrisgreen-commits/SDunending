@@ -181,10 +181,9 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Updates:
- * - Key Transparency: Set to 75% (0.75 opacity).
- * - Animation State Fix: Run cycle strictly limited to Run1 and Run2.
- * - Walk Cycle Fix: Walk cycle properly uses Idle, Walk1, Walk2 sequence.
- * - Lagged State Transition: Improved logic for braking from run to walk/idle.
+ * - Proportional Scaling: No stretching or squashing.
+ * - Dynamic Heights: Run and Land cycles are 75% of base height (proportional width).
+ * - Animation Cycles: Strict sprite sequences for walk, run, and land.
  */
 
 const CONFIG = {
@@ -199,11 +198,10 @@ const CONFIG = {
     INTERNAL_HEIGHT: 1080,
     LEVEL_LENGTH: 30,
     PARALLAX_FACTOR: 0.3,
-    PLAYER_BASE_HEIGHT: 165,      
-    PLAYER_SCALED_HEIGHT: 206.25, 
-    PLAYER_RUN_HEIGHT: 154.68,
-    ANIM_FPS: 10,
-    RUN_ANIM_FPS: 15,
+    // Base height for Idle, Walk, Jump
+    PLAYER_BASE_HEIGHT: 206,      
+    // Crouch height for Run, Land (75% of Base)
+    PLAYER_CROUCH_HEIGHT: 154, 
     REQUIRED_KEYS: 25,
     MIN_HEAD_CLEARANCE: 260, 
     MAX_JUMP_REACH: 440,
@@ -218,8 +216,8 @@ const LEVELS = [
 
 class Player {
     constructor() {
-        this.height = CONFIG.PLAYER_SCALED_HEIGHT;
-        this.width = 108; 
+        this.baseHeight = CONFIG.PLAYER_BASE_HEIGHT;
+        this.width = 108; // This is a reference width, will be adjusted by aspect ratio
         this.keysCollected = 0;
         this.hasWings = false;
         this.canDoubleJump = false;
@@ -251,10 +249,10 @@ class Player {
             img.onload = () => resolve(img);
             img.onerror = () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = 72; canvas.height = 108;
+                canvas.width = 100; canvas.height = 150;
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = this.isRunning ? '#e74c3c' : '#3498db';
-                ctx.fillRect(0,0,72,108);
+                ctx.fillRect(0,0,100,150);
                 resolve(canvas);
             };
             img.src = src;
@@ -271,7 +269,7 @@ class Player {
 
     spawnAt(x, y) {
         this.x = x;
-        this.y = y - CONFIG.PLAYER_SCALED_HEIGHT; 
+        this.y = y - CONFIG.PLAYER_BASE_HEIGHT; 
         this.vx = 0;
         this.vy = 0;
         this.grounded = true;
@@ -310,7 +308,6 @@ class Player {
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
         
-        // Braking: Keep isRunning true until velocity drops significantly
         if (!inputLeft && !inputRight) {
             if (Math.abs(this.vx) < 3.0) {
                 this.isRunning = false;
@@ -344,19 +341,17 @@ class Player {
         this.y += this.vy;
         
         let foundGround = false;
-        // Logic to determine active collision height for physics
-        let collisionHeight = CONFIG.PLAYER_SCALED_HEIGHT;
-        if (this.state === 'land') collisionHeight = CONFIG.PLAYER_BASE_HEIGHT;
-        else if (this.state === 'run') collisionHeight = CONFIG.PLAYER_RUN_HEIGHT;
-
-        const hitboxPadding = this.width * 0.25;
+        
+        // Determine collision height based on state
+        let currentPhysHeight = (this.state === 'run' || this.state === 'land') ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
+        const hitboxPadding = 30;
 
         for (let p of platforms) {
             if (this.x + hitboxPadding < p.x + p.w && this.x + this.width - hitboxPadding > p.x &&
-                this.y < p.y + p.h && this.y + collisionHeight > p.y) {
+                this.y < p.y + p.h && this.y + currentPhysHeight > p.y) {
                 
-                if (this.vy >= 0 && this.y + collisionHeight - this.vy <= p.y + 25) {
-                    this.y = p.y - collisionHeight;
+                if (this.vy >= 0 && this.y + currentPhysHeight - this.vy <= p.y + 25) {
+                    this.y = p.y - currentPhysHeight;
                     this.vy = 0;
                     foundGround = true;
                     if (this.hasWings) this.canDoubleJump = true;
@@ -391,14 +386,13 @@ class Player {
         if (this.grounded) {
             const isMovingActually = Math.abs(this.vx) > 1.5;
 
-            // Trigger landing state if we hit ground with significant force
             if (!wasGrounded && lastVy > 3.0) {
                 this.state = 'land';
                 this.landStepDistance = 0;
             } 
             
             if (this.state === 'land') {
-                this.landStepDistance += Math.abs(this.vx) + 5; // Fixed progress even if standing
+                this.landStepDistance += Math.abs(this.vx) + 8;
                 if (this.landStepDistance >= CONFIG.LAND_STEP_REQUIREMENT) {
                     this.state = isMovingActually ? (this.isRunning ? 'run' : 'walk') : 'idle';
                 }
@@ -424,7 +418,6 @@ class Player {
                 this.isRunning = false;
             }
         } else {
-            // Only update to jump state if not explicitly in land state (e.g. falling off a ledge)
             if (this.state !== 'land' && Math.abs(this.vy) > 0.5) {
                 this.state = 'jump';
             }
@@ -433,7 +426,7 @@ class Player {
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
-                this.y < item.y + 60 && this.y + collisionHeight > item.y) {
+                this.y < item.y + 60 && this.y + currentPhysHeight > item.y) {
                 
                 item.collected = true;
                 if (item.type === 'key') this.keysCollected++;
@@ -458,45 +451,53 @@ class Player {
         
         let screenX = this.x - cameraX;
         let img = this.sprites.idle;
-        let drawH = CONFIG.PLAYER_SCALED_HEIGHT;
+        let targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
 
-        // Determine which sprite to use and height to draw based on state
+        // State machine for current sprite image and scale factor
         switch(this.state) {
             case 'jump':
                 img = this.sprites.jump;
-                drawH = CONFIG.PLAYER_SCALED_HEIGHT;
+                targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 break;
             case 'land':
                 img = this.sprites.land;
-                drawH = CONFIG.PLAYER_BASE_HEIGHT;
+                targetDrawH = CONFIG.PLAYER_CROUCH_HEIGHT;
                 break;
             case 'run':
                 img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2;
-                drawH = CONFIG.PLAYER_RUN_HEIGHT;
+                targetDrawH = CONFIG.PLAYER_CROUCH_HEIGHT;
                 break;
             case 'walk':
                 const walkCycle = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
                 img = walkCycle[this.animFrame % 4];
-                drawH = CONFIG.PLAYER_SCALED_HEIGHT;
+                targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 break;
             default: // idle
                 img = this.sprites.idle;
-                drawH = CONFIG.PLAYER_SCALED_HEIGHT;
+                targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
         }
+
+        // Calculate proportional width based on natural aspect ratio to prevent stretching
+        const aspectRatio = img.naturalWidth / img.naturalHeight;
+        const targetDrawW = targetDrawH * aspectRatio;
+        
+        // Update character width for collision consistency based on current scale
+        this.width = targetDrawW;
 
         if (this.direction === -1) {
-            ctx.translate(screenX + this.width / 2, 0);
+            ctx.translate(screenX + targetDrawW / 2, 0);
             ctx.scale(-1, 1);
-            ctx.translate(-(screenX + this.width / 2), 0);
+            ctx.translate(-(screenX + targetDrawW / 2), 0);
         }
 
-        const drawW = this.width;
-        const xOffset = (this.width - drawW) / 2;
-        const yOffset = this.height - drawH;
-        
-        ctx.drawImage(img, screenX + xOffset, this.y + yOffset, drawW, drawH);
+        // Align the bottom of the sprite with the current y position (feet-locked)
+        const yOffset = (this.state === 'run' || this.state === 'land') ? 
+                        CONFIG.PLAYER_CROUCH_HEIGHT - targetDrawH : 
+                        CONFIG.PLAYER_BASE_HEIGHT - targetDrawH;
 
-        // Drawing wings
+        ctx.drawImage(img, screenX, this.y + yOffset, targetDrawW, targetDrawH);
+
+        // Wings logic
         if (this.hasWings) {
             ctx.font = "64px Arial"; 
             ctx.globalAlpha = 0.85 + Math.sin(Date.now() / 150) * 0.1;
@@ -504,10 +505,7 @@ class Player {
             ctx.shadowColor = "gold";
             const wingY = this.y + 70 + yOffset;
 
-            // Right wing
-            ctx.fillText("🪽", screenX + this.width + 5, wingY);
-            
-            // Left wing (flipped)
+            ctx.fillText("🪽", screenX + targetDrawW + 5, wingY);
             ctx.save();
             ctx.translate(screenX - 45 + 32, wingY - 32);
             ctx.scale(-1, 1);
@@ -727,8 +725,7 @@ class Game {
                 this.ctx.shadowColor = item.type === 'key' ? "gold" : "cyan";
                 this.ctx.font = item.type === 'key' ? "55px Arial" : "75px Arial";
                 
-                // Keys only 75% transparent (0.75 opacity)
-                this.ctx.globalAlpha = 0.75; 
+                this.ctx.globalAlpha = 0.75; // 75% Transparency requirement
                 
                 const bounce = Math.sin(Date.now() / 300) * 15;
                 this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX, item.y + bounce);
