@@ -80,7 +80,6 @@
             justify-content: center;
             align-items: center;
             position: relative;
-            transition: all 0.2s;
         }
         .inv-slot.active { border-color: var(--ui-gold); }
 
@@ -99,12 +98,6 @@
             z-index: 100;
             backdrop-filter: blur(5px);
         }
-        #message-content {
-            max-width: 600px;
-            padding: 40px;
-            border-top: 2px solid var(--ui-gold);
-            border-bottom: 2px solid var(--ui-gold);
-        }
         .btn {
             background: var(--ui-gold);
             color: black;
@@ -115,10 +108,7 @@
             cursor: pointer;
             margin-top: 30px;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            transition: transform 0.1s;
         }
-        .btn:hover { transform: scale(1.05); }
     </style>
 </head>
 <body>
@@ -128,8 +118,8 @@
     
     <div id="ui-layer">
         <div class="hud-box">
-            <div id="level-name">LEVEL 1: THE DUNGEON</div>
-            <div id="objective">Objective: Find the exit to the tunnels.</div>
+            <div id="level-name">LOADING...</div>
+            <div id="objective">Waiting for Avalon to awaken.</div>
         </div>
     </div>
 
@@ -179,39 +169,42 @@ class Player {
         this.height = 72;
         this.reset();
         this.inventory = [];
-        
-        // Sprite management
         this.assetsLoaded = false;
-        this.sprites = {
-            idle: new Image(),
-            walk: new Image(),
-            jump: new Image(),
-            land: new Image()
-        };
-        this.loadAssets();
-
+        this.sprites = {};
         this.animTimer = 0;
-        this.state = 'idle'; // 'idle', 'walk', 'jump', 'land'
+        this.state = 'idle';
     }
 
-    loadAssets() {
-        let loadedCount = 0;
-        const total = 4;
-        const onload = () => {
-            loadedCount++;
-            if(loadedCount === total) this.assetsLoaded = true;
+    async loadAssets() {
+        const sources = {
+            idle: 'WinterIdle.png',
+            walk: 'WinterWalk.png', // Reverted to generic name for your GitHub structure
+            jump: 'WinterJumpS.png',
+            land: 'WinterLandS.png'
         };
-        
-        this.sprites.idle.onload = onload;
-        this.sprites.walk.onload = onload;
-        this.sprites.jump.onload = onload;
-        this.sprites.land.onload = onload;
-        
-        // GitHub-ready filenames
-        this.sprites.idle.src = 'WinterIdle.png';
-        this.sprites.walk.src = 'WinterWalk.png';
-        this.sprites.jump.src = 'WinterJumpS.png';
-        this.sprites.land.src = 'WinterLandS.png';
+
+        const loadImg = (src) => new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => {
+                // If it fails, create a colored canvas as a fallback so we don't just see a blue box forever
+                const canvas = document.createElement('canvas');
+                canvas.width = 48; canvas.height = 72;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#3498db';
+                ctx.fillRect(0,0,48,72);
+                resolve(canvas);
+            };
+            img.src = src;
+        });
+
+        const results = await Promise.all(Object.entries(sources).map(async ([key, src]) => {
+            const img = await loadImg(src);
+            return [key, img];
+        }));
+
+        this.sprites = Object.fromEntries(results);
+        this.assetsLoaded = true;
     }
 
     reset() {
@@ -228,7 +221,6 @@ class Player {
         let wasGrounded = this.grounded;
         let isMoving = false;
 
-        // Movement Input
         if (keys['ArrowRight'] || keys['d']) {
             this.vx += CONFIG.PLAYER_SPEED;
             this.direction = 1;
@@ -247,21 +239,17 @@ class Player {
         this.y += this.vy;
         this.grounded = false;
 
-        // Platform Collisions
         for (let p of platforms) {
             if (this.x + 10 < p.x + p.w && this.x + this.width - 10 > p.x &&
                 this.y < p.y + p.h && this.y + this.height > p.y) {
-                
                 if (this.vy > 0 && this.y + this.height - this.vy <= p.y) {
                     this.y = p.y - this.height;
                     this.vy = 0;
                     this.grounded = true;
-                }
-                else if (this.vy < 0 && this.y - this.vy >= p.y + p.h) {
+                } else if (this.vy < 0 && this.y - this.vy >= p.y + p.h) {
                     this.y = p.y + p.h;
                     this.vy = 0;
-                }
-                else if (this.vx > 0 && this.x + this.width - 10 <= p.x + 10) {
+                } else if (this.vx > 0 && this.x + this.width - 10 <= p.x + 10) {
                     this.x = p.x - this.width + 10;
                     this.vx = 0;
                 } else if (this.vx < 0 && this.x + 10 >= p.x + p.w - 10) {
@@ -271,14 +259,12 @@ class Player {
             }
         }
 
-        // Jump logic
         if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && this.grounded) {
             this.vy = -CONFIG.JUMP_FORCE;
             this.grounded = false;
             this.state = 'jump';
         }
 
-        // Logic for Landing vs Walking vs Idle
         if (this.grounded) {
             if (!wasGrounded) {
                 this.state = 'land';
@@ -287,17 +273,13 @@ class Player {
                     this.state = 'walk';
                     this.animTimer++;
                 } else {
-                    // Stay in land state unless moving or jumping again
-                    if (this.state !== 'land') {
-                        this.state = 'idle';
-                    }
+                    if (this.state !== 'land') this.state = 'idle';
                 }
             }
         } else {
             this.state = 'jump';
         }
 
-        // Item collection
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 30 && this.x + this.width > item.x &&
@@ -321,11 +303,16 @@ class Player {
 
     draw(ctx, cameraX) {
         ctx.save();
-        
         let drawX = this.x - cameraX;
+        
+        // Flip context if facing left
         if (this.direction === -1) {
+            ctx.translate(drawX + this.width, 0);
             ctx.scale(-1, 1);
-            drawX = -drawX - this.width;
+            drawX = 0;
+        } else {
+            ctx.translate(drawX, 0);
+            drawX = 0;
         }
 
         if (this.assetsLoaded) {
@@ -343,11 +330,7 @@ class Player {
             }
 
             ctx.drawImage(img, drawX, this.y + bounce, this.width, this.height);
-        } else {
-            ctx.fillStyle = "#3498db";
-            ctx.fillRect(drawX, this.y, this.width, this.height);
         }
-
         ctx.restore();
     }
 }
@@ -367,6 +350,11 @@ class Game {
         this.cameraX = 0;
         this.isPaused = false;
 
+        this.start();
+    }
+
+    async start() {
+        await this.player.loadAssets();
         this.initLevel();
         this.loop();
     }
