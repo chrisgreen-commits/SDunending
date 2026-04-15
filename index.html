@@ -83,7 +83,6 @@
             transition: all 0.2s;
         }
         .inv-slot.active { border-color: var(--ui-gold); }
-        .inv-slot img { max-width: 80%; max-height: 80%; }
 
         #message-overlay {
             position: absolute;
@@ -143,8 +142,8 @@
 
     <div id="message-overlay">
         <div id="message-content">
-            <h1 id="overlay-title" style="color: var(--ui-gold); margin-bottom: 20px;">EXCALIBUR IS IN ANOTHER PART OF THE CASTLE.</h1>
-            <p id="overlay-text" style="line-height: 1.6; font-size: 1.1rem;">The search continues in the Servant Tunnels...</p>
+            <h1 id="overlay-title">EXCALIBUR IS IN ANOTHER PART OF THE CASTLE.</h1>
+            <p id="overlay-text">The search continues...</p>
             <button class="btn" onclick="game.nextLevel()">CONTINUE SEARCH</button>
         </div>
     </div>
@@ -163,7 +162,7 @@ const CONFIG = {
     JUMP_FORCE: 11,
     VIEWPORT_WIDTH: 1000,
     VIEWPORT_HEIGHT: 600,
-    LEVEL_LENGTH: 20 // Number of procedural segments
+    LEVEL_LENGTH: 20
 };
 
 const LEVELS = [
@@ -183,27 +182,36 @@ class Player {
         
         // Sprite management
         this.assetsLoaded = false;
-        this.idleImg = new Image();
-        this.walkImg = new Image();
+        this.sprites = {
+            idle: new Image(),
+            walk: new Image(),
+            jump: new Image(),
+            land: new Image()
+        };
         this.loadAssets();
 
         this.animTimer = 0;
-        this.animFrame = 0;
-        this.state = 'idle'; // 'idle', 'walk', 'jump'
+        this.state = 'idle'; // 'idle', 'walk', 'jump', 'land'
     }
 
     loadAssets() {
         let loadedCount = 0;
-        const total = 2;
+        const total = 4;
         const onload = () => {
             loadedCount++;
             if(loadedCount === total) this.assetsLoaded = true;
         };
-        this.idleImg.onload = onload;
-        this.walkImg.onload = onload;
         
-        this.idleImg.src = 'WinterIdle.png';
-        this.walkImg.src = 'WinterWalk1.png';
+        this.sprites.idle.onload = onload;
+        this.sprites.walk.onload = onload;
+        this.sprites.jump.onload = onload;
+        this.sprites.land.onload = onload;
+        
+        // GitHub-ready filenames
+        this.sprites.idle.src = 'WinterIdle.png';
+        this.sprites.walk.src = 'WinterWalk.png';
+        this.sprites.jump.src = 'WinterJumpS.png';
+        this.sprites.land.src = 'WinterLandS.png';
     }
 
     reset() {
@@ -213,18 +221,22 @@ class Player {
         this.vy = 0;
         this.grounded = false;
         this.direction = 1; 
+        this.state = 'idle';
     }
 
     update(platforms, items) {
-        let moving = false;
+        let wasGrounded = this.grounded;
+        let isMoving = false;
+
+        // Movement Input
         if (keys['ArrowRight'] || keys['d']) {
             this.vx += CONFIG.PLAYER_SPEED;
             this.direction = 1;
-            moving = true;
+            isMoving = true;
         } else if (keys['ArrowLeft'] || keys['a']) {
             this.vx -= CONFIG.PLAYER_SPEED;
             this.direction = -1;
-            moving = true;
+            isMoving = true;
         }
         
         this.vx = Math.max(-CONFIG.MAX_SPEED, Math.min(CONFIG.MAX_SPEED, this.vx));
@@ -263,6 +275,26 @@ class Player {
         if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && this.grounded) {
             this.vy = -CONFIG.JUMP_FORCE;
             this.grounded = false;
+            this.state = 'jump';
+        }
+
+        // Logic for Landing vs Walking vs Idle
+        if (this.grounded) {
+            if (!wasGrounded) {
+                this.state = 'land';
+            } else {
+                if (isMoving) {
+                    this.state = 'walk';
+                    this.animTimer++;
+                } else {
+                    // Stay in land state unless moving or jumping again
+                    if (this.state !== 'land') {
+                        this.state = 'idle';
+                    }
+                }
+            }
+        } else {
+            this.state = 'jump';
         }
 
         // Item collection
@@ -275,16 +307,6 @@ class Player {
             }
         }
 
-        // Animation state
-        if (!this.grounded) {
-            this.state = 'jump';
-        } else if (Math.abs(this.vx) > 0.2) {
-            this.state = 'walk';
-            this.animTimer++;
-        } else {
-            this.state = 'idle';
-        }
-
         if (this.y > CONFIG.VIEWPORT_HEIGHT + 200) this.reset();
     }
 
@@ -292,7 +314,7 @@ class Player {
         if (this.inventory.length < 4) {
             this.inventory.push(item);
             const slot = document.getElementById(`slot-${this.inventory.length - 1}`);
-            slot.innerHTML = `<span style="color: gold; font-size: 20px;">★</span>`; // Placeholder icon
+            slot.innerHTML = `<span style="color: gold; font-size: 20px;">★</span>`; 
             slot.classList.add('active');
         }
     }
@@ -300,7 +322,6 @@ class Player {
     draw(ctx, cameraX) {
         ctx.save();
         
-        // Flip image based on direction
         let drawX = this.x - cameraX;
         if (this.direction === -1) {
             ctx.scale(-1, 1);
@@ -308,17 +329,21 @@ class Player {
         }
 
         if (this.assetsLoaded) {
-            let img = this.state === 'walk' ? this.walkImg : this.idleImg;
-            
-            // Simple bounce animation for walk if only 1 frame available
+            let img = this.sprites.idle;
             let bounce = 0;
-            if (this.state === 'walk') {
-                bounce = Math.sin(this.animTimer * 0.2) * 3;
+
+            switch(this.state) {
+                case 'jump': img = this.sprites.jump; break;
+                case 'land': img = this.sprites.land; break;
+                case 'walk': 
+                    img = this.sprites.walk; 
+                    bounce = Math.sin(this.animTimer * 0.2) * 3;
+                    break;
+                default: img = this.sprites.idle;
             }
 
             ctx.drawImage(img, drawX, this.y + bounce, this.width, this.height);
         } else {
-            // Fallback
             ctx.fillStyle = "#3498db";
             ctx.fillRect(drawX, this.y, this.width, this.height);
         }
@@ -361,38 +386,24 @@ class Game {
     generateLevel() {
         this.platforms = [];
         this.items = [];
-        
-        // Starting block
-        this.platforms.push({ x: 0, y: 500, w: 500, h: 200, type: 'stone' });
-
+        this.platforms.push({ x: 0, y: 500, w: 500, h: 200 });
         let lastX = 400;
         let lastY = 500;
 
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
-            let gap = 100 + Math.random() * 80;
+            let gap = 110 + Math.random() * 70;
             let width = 200 + Math.random() * 250;
-            let heightChange = (Math.random() - 0.5) * 180;
-            
+            let heightChange = (Math.random() - 0.5) * 160;
             let nextX = lastX + gap;
             let nextY = Math.max(200, Math.min(520, lastY + heightChange));
-
             this.platforms.push({ x: nextX, y: nextY, w: width, h: 40 });
-
-            // Random decorative or mystery items
             if (Math.random() > 0.6) {
-                this.items.push({
-                    x: nextX + width/2 - 15,
-                    y: nextY - 40,
-                    collected: false,
-                    name: 'Mystery Relic'
-                });
+                this.items.push({ x: nextX + width/2 - 15, y: nextY - 40, collected: false });
             }
-
             lastX = nextX + width;
             lastY = nextY;
         }
 
-        // Exit Area
         this.exit.x = lastX - 120;
         this.exit.y = lastY - 100;
         this.platforms.push({ x: lastX - 200, y: lastY, w: 400, h: 200 });
@@ -410,15 +421,11 @@ class Game {
 
     update() {
         if (this.isPaused) return;
-
         this.player.update(this.platforms, this.items);
-
-        // Smooth Camera
         let targetCam = this.player.x - CONFIG.VIEWPORT_WIDTH / 3;
         this.cameraX += (targetCam - this.cameraX) * 0.08;
         this.cameraX = Math.max(0, this.cameraX);
 
-        // Exit Trigger
         if (this.player.x + this.player.width > this.exit.x && 
             this.player.x < this.exit.x + this.exit.w &&
             this.player.y + this.player.height > this.exit.y &&
@@ -435,52 +442,43 @@ class Game {
 
         if (this.currentLevelIndex === 3) {
             title.innerText = "YOU FOUND EXCALIBUR!";
-            text.innerText = "The power of Avalon surges through you. The roof is the only way out, but the shadows have sent their best. Fight your way to the extraction point.";
+            text.innerText = "The power of Avalon surges through you. Get to the roof extraction point.";
         } else {
             title.innerText = "EXCALIBUR IS IN ANOTHER PART OF THE CASTLE.";
             let nextPlace = LEVELS[this.currentLevelIndex + 1]?.name || "The Depths";
-            text.innerText = `Excalibur's resonance is stronger further up. You must enter ${nextPlace}.`;
+            text.innerText = `Proceeding to ${nextPlace}.`;
         }
-        
         overlay.style.display = 'flex';
     }
 
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         const level = LEVELS[this.currentLevelIndex];
-
-        // Background Gradient
         let grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
         grad.addColorStop(0, level.color);
         grad.addColorStop(1, "#000");
         this.ctx.fillStyle = grad;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw Platforms
         for (let p of this.platforms) {
             if (p.x + p.w > this.cameraX && p.x < this.cameraX + CONFIG.VIEWPORT_WIDTH) {
                 this.ctx.fillStyle = level.accent;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, p.h);
-                this.ctx.strokeStyle = "rgba(255,255,255,0.1)";
-                this.ctx.strokeRect(p.x - this.cameraX, p.y, p.w, p.h);
             }
         }
 
-        // Draw Items
         for (let item of this.items) {
             if (!item.collected && item.x + 30 > this.cameraX && item.x < this.cameraX + CONFIG.VIEWPORT_WIDTH) {
-                this.ctx.fillStyle = "rgba(255, 215, 0, " + (0.5 + Math.sin(Date.now()*0.005)*0.5) + ")";
+                this.ctx.fillStyle = "gold";
                 this.ctx.beginPath();
                 this.ctx.arc(item.x - this.cameraX + 15, item.y + 15, 8, 0, Math.PI*2);
                 this.ctx.fill();
             }
         }
 
-        // Draw Exit (Doorway)
         this.ctx.fillStyle = "#111";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
-        this.ctx.strokeStyle = varColor('--ui-gold');
-        this.ctx.lineWidth = 3;
+        this.ctx.strokeStyle = "gold";
         this.ctx.strokeRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
 
         this.player.draw(this.ctx, this.cameraX);
@@ -491,10 +489,6 @@ class Game {
         this.draw();
         requestAnimationFrame(() => this.loop());
     }
-}
-
-function varColor(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 const keys = {};
