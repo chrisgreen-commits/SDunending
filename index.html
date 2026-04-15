@@ -181,8 +181,9 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Updates:
- * - Stabilized Run Animation: Removed width jitter and state flickering.
- * - Unified Heights: Enforced exact heights and fixed vertical anchoring to the player model.
+ * - Fixed Squashed Logic: Ensured consistent drawH for run cycle.
+ * - Lagged State Transition: Prevented instant snapping to idle from high-speed running.
+ * - Symmetrical Wings: Flipped the left wing horizontally.
  */
 
 const CONFIG = {
@@ -199,7 +200,7 @@ const CONFIG = {
     PARALLAX_FACTOR: 0.3,
     PLAYER_BASE_HEIGHT: 165,      
     PLAYER_SCALED_HEIGHT: 206.25, 
-    PLAYER_RUN_HEIGHT: 154.68, // Exactly 75% of scaled height
+    PLAYER_RUN_HEIGHT: 154.68,
     ANIM_FPS: 10,
     RUN_ANIM_FPS: 15,
     REQUIRED_KEYS: 25,
@@ -308,8 +309,12 @@ class Player {
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
         
+        // When input is released, we keep isRunning true until friction slows us down
+        // to prevent instant frame snapping.
         if (!inputLeft && !inputRight) {
-            this.isRunning = false;
+            if (Math.abs(this.vx) < 3.0) {
+                this.isRunning = false;
+            }
         }
 
         const accel = this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED;
@@ -339,9 +344,10 @@ class Player {
         this.y += this.vy;
         
         let foundGround = false;
+        // Logic to determine active collision height for physics
         let collisionHeight = CONFIG.PLAYER_SCALED_HEIGHT;
         if (this.state === 'land') collisionHeight = CONFIG.PLAYER_BASE_HEIGHT;
-        else if (this.state === 'run') collisionHeight = CONFIG.PLAYER_RUN_HEIGHT;
+        else if (this.state === 'run' || (this.isRunning && Math.abs(this.vx) > 3.0)) collisionHeight = CONFIG.PLAYER_RUN_HEIGHT;
 
         const hitboxPadding = this.width * 0.25;
 
@@ -397,9 +403,16 @@ class Player {
                 }
             } 
             else if (isMovingActually) {
-                this.state = this.isRunning ? 'run' : 'walk';
+                // Determine if we are running based on current speed or isRunning toggle
+                const speedMagnitude = Math.abs(this.vx);
+                if (this.isRunning || speedMagnitude > 8.0) {
+                    this.state = 'run';
+                } else {
+                    this.state = 'walk';
+                }
+
                 if (this.animTimer++ >= 4) {
-                    const frameCount = this.isRunning ? 2 : 4;
+                    const frameCount = this.state === 'run' ? 2 : 4;
                     this.animFrame = (this.animFrame + 1) % frameCount; 
                     this.animTimer = 0;
                 }
@@ -407,6 +420,7 @@ class Player {
             else {
                 this.state = 'idle';
                 this.animFrame = 0;
+                this.isRunning = false; // Kill run flag when fully stopped
             }
         } else {
             if (Math.abs(this.vy) > 0.5) {
@@ -456,6 +470,7 @@ class Player {
         } else if (this.state === 'walk') {
             const seq = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
             img = seq[this.animFrame % 4] || this.sprites.idle;
+            drawH = CONFIG.PLAYER_SCALED_HEIGHT;
         }
 
         if (this.direction === -1) {
@@ -470,14 +485,24 @@ class Player {
         
         ctx.drawImage(img, screenX + xOffset, this.y + yOffset, drawW, drawH);
 
+        // Drawing wings
         if (this.hasWings) {
             ctx.font = "64px Arial"; 
             ctx.globalAlpha = 0.85 + Math.sin(Date.now() / 150) * 0.1;
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             const wingY = this.y + 70 + yOffset;
-            ctx.fillText("🪽", screenX - 45, wingY);
+
+            // Right wing (standard)
             ctx.fillText("🪽", screenX + this.width + 5, wingY);
+            
+            // Left wing (flipped)
+            ctx.save();
+            ctx.translate(screenX - 45 + 32, wingY - 32); // Adjust center
+            ctx.scale(-1, 1);
+            ctx.fillText("🪽", -32, 32);
+            ctx.restore();
+
             ctx.shadowBlur = 0;
             ctx.globalAlpha = 1.0;
         }
