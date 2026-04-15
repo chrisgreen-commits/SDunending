@@ -182,8 +182,8 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fix: Falling through floor during down-punch.
- * Logic: Maintain consistent foot-level coordinate during height transitions.
+ * Fix: Animation state persistence and Kick scaling.
+ * Logic: Ensure run cycle overrides previous states strictly when grounded.
  */
 
 const CONFIG = {
@@ -207,7 +207,8 @@ const CONFIG = {
     BRICK_HEALTH: 3,
     ATTACK_COOLDOWN: 15,
     PLATFORM_COLOR: '#8d9196',
-    PLATFORM_HIGHLIGHT: '#b0b4b9'
+    PLATFORM_HIGHLIGHT: '#b0b4b9',
+    KICK_SCALE: 1.25 // Scale kick graphic
 };
 
 const LEVELS = [
@@ -351,6 +352,7 @@ class Player {
         const inputRight = keys['ArrowRight'] || keys['d'];
         
         if (!inputLeft && !inputRight) {
+            // Decelerate naturally
             if (Math.abs(this.vx) < 1.0) {
                 this.isRunning = false;
             }
@@ -373,8 +375,8 @@ class Player {
     performPunch(bricks) {
         if (this.attackTimer > 0) return;
         const px = this.x + this.width / 2;
-        // Search slightly lower for down punch
-        const py = this.y + (this.isRunning ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT) + 20;
+        const currentH = (this.state === 'run' || this.state === 'land') ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
+        const py = this.y + currentH + 20;
         for (let b of bricks) {
             if (!b.destroyed && px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h + 20) {
                 b.damage();
@@ -387,7 +389,8 @@ class Player {
     performKick(bricks) {
         if (this.attackTimer > 0) return;
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
-        const ky = this.y + (this.isRunning ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT) / 2;
+        const currentH = (this.state === 'run' || this.state === 'land') ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
+        const ky = this.y + currentH / 2;
         for (let b of bricks) {
             if (!b.destroyed && kx > b.x && kx < b.x + b.w && ky > b.y && ky < b.y + b.h) {
                 b.damage();
@@ -402,9 +405,6 @@ class Player {
 
         this.handleInput();
 
-        // Save bottom position before processing physics to handle height transitions
-        const currentFeetY = this.y + (this.state === 'run' || this.state === 'land' ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT);
-
         this.vx *= CONFIG.FRICTION;
         this.x += this.vx;
 
@@ -415,7 +415,15 @@ class Player {
         const isPunching = keys['ArrowDown'] || keys['s'];
         const isKicking = keys['KickPressed'];
 
-        // Determine profile height
+        // Strict state detection for running vs walking
+        const horizontalSpeed = Math.abs(this.vx);
+        if (horizontalSpeed > CONFIG.MAX_WALK_SPEED + 0.5) {
+            this.isRunning = true;
+        } else if (horizontalSpeed < 0.5) {
+            this.isRunning = false;
+        }
+
+        // Determine profile height for physics
         const isLowProfile = (this.isRunning && this.grounded) || isPunching;
         let currentPhysHeight = isLowProfile ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         const hitboxPadding = 30;
@@ -425,23 +433,19 @@ class Player {
 
         for (let b of bricks) {
             if (b.destroyed) continue;
-            // Basic AABB check
             if (this.x + hitboxPadding < b.x + b.w && this.x + this.width - hitboxPadding > b.x &&
                 this.y < b.y + b.h && this.y + currentPhysHeight > b.y) {
                 
-                // Ground Collision (Falling or Grounded)
                 if (this.vy >= 0 && this.y + currentPhysHeight - this.vy <= b.y + 35) {
                     this.y = b.y - currentPhysHeight;
                     this.vy = 0;
                     foundGround = true;
                     if (this.hasWings) this.canDoubleJump = true;
                 } 
-                // Ceiling Collision
                 else if (this.vy < 0 && this.y - this.vy >= b.y + b.h - 35) {
                     this.y = b.y + b.h;
                     this.vy = 0;
                 } 
-                // Horizontal Wall Collisions
                 else if (this.vx > 0 && this.x + this.width - hitboxPadding <= b.x + 20) {
                     this.x = b.x - this.width + hitboxPadding;
                     this.vx = 0;
@@ -464,16 +468,16 @@ class Player {
             }
         }
 
-        // Animation state priority
+        // --- ANIMATION STATE LOGIC (CLEANED UP) ---
         if (!this.grounded) {
             this.state = isKicking ? 'kick' : 'jump';
         } else {
-            const isMovingActually = Math.abs(this.vx) > 1.0;
+            // Grounded logic
             if (isKicking) {
                 this.state = 'kick';
             } else if (isPunching) {
                 this.state = 'land';
-            } else if (isMovingActually) {
+            } else if (Math.abs(this.vx) > 1.0) {
                 if (this.isRunning) {
                     this.state = 'run';
                     if (this.animTimer++ >= 4) {
@@ -491,14 +495,6 @@ class Player {
                 this.state = 'idle';
                 this.animFrame = 0;
             }
-        }
-
-        // Adjust Y coordinate on transitions to prevent "falling" or "jumping" up
-        // If we just landed or started a low-profile move, keep feet anchored
-        if (this.grounded) {
-            const finalHeight = (this.state === 'run' || this.state === 'land') ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
-            // Since we know we are on ground, we can simply ensure our Y + height matches the ground we are on.
-            // But we need to know WHICH brick. The collision loop above already handles the 'y' correction.
         }
 
         // Item collection
@@ -531,6 +527,7 @@ class Player {
         let screenX = this.x - cameraX;
         let img = this.sprites.idle;
         let targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
+        let scaleFactor = 1.0;
 
         switch(this.state) {
             case 'jump':
@@ -544,6 +541,7 @@ class Player {
             case 'kick':
                 img = this.sprites.kick;
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
+                scaleFactor = CONFIG.KICK_SCALE; // Apply 125% scale
                 break;
             case 'run':
                 img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2;
@@ -560,18 +558,22 @@ class Player {
         }
 
         const aspectRatio = img.naturalWidth / img.naturalHeight;
-        const targetDrawW = targetDrawH * aspectRatio;
-        this.width = targetDrawW;
+        let finalDrawH = targetDrawH * scaleFactor;
+        let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
+        
+        // Update width reference for collision
+        this.width = targetDrawH * aspectRatio;
 
         if (this.direction === -1) {
-            ctx.translate(screenX + targetDrawW / 2, 0);
+            ctx.translate(screenX + (finalDrawW / 2), 0);
             ctx.scale(-1, 1);
-            ctx.translate(-(screenX + targetDrawW / 2), 0);
+            ctx.translate(-(screenX + (finalDrawW / 2)), 0);
         }
 
-        // Draw character - no yOffset needed here because 'this.y' is managed by physics engine 
-        // to be the top-left of the current hitbox profile.
-        ctx.drawImage(img, screenX, this.y, targetDrawW, targetDrawH);
+        // If scaling is applied, we adjust Y so her feet stay on the ground
+        let yDrawOffset = (targetDrawH - finalDrawH); 
+        
+        ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
 
         if (this.hasWings) {
             ctx.font = "64px Arial"; 
@@ -579,7 +581,7 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             const wingY = this.y + 70;
-            ctx.fillText("🪽", screenX + targetDrawW + 5, wingY);
+            ctx.fillText("🪽", screenX + finalDrawW + 5, wingY);
             ctx.save();
             ctx.translate(screenX - 45 + 32, wingY - 32);
             ctx.scale(-1, 1);
@@ -711,9 +713,10 @@ class Game {
         let targetCam = this.player.x - (CONFIG.INTERNAL_WIDTH / 3);
         this.cameraX += (targetCam - this.cameraX) * 0.1;
         this.cameraX = Math.max(0, this.cameraX);
+        const playerH = (this.player.state === 'run' || this.player.state === 'land') ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         if (this.player.x + this.player.width > this.exit.x && 
             this.player.x < this.exit.x + this.exit.w &&
-            this.player.y + (this.player.state === 'run' || this.player.state === 'land' ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT) > this.exit.y &&
+            this.player.y + playerH > this.exit.y &&
             this.player.y < this.exit.y + this.exit.h) {
             if (this.player.keysCollected >= CONFIG.REQUIRED_KEYS) this.completeLevel();
         }
@@ -785,8 +788,11 @@ const keys = {};
 window.addEventListener('keydown', e => {
     const now = Date.now(), key = e.key.toLowerCase();
     if ((key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft') && !keys[key]) {
-        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) game.player.isRunning = true;
-        game.player.lastTapTime = now; game.player.lastTapKey = key;
+        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
+            game.player.isRunning = true;
+        }
+        game.player.lastTapTime = now; 
+        game.player.lastTapKey = key;
     }
     keys[key] = true;
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = true;
