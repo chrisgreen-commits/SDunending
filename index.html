@@ -11,6 +11,7 @@
             --accent: #a8dadc;
             --slot-bg: rgba(255, 255, 255, 0.05);
             --slot-border: #444;
+            --danger: #ff4d4d;
         }
         body, html {
             margin: 0;
@@ -54,6 +55,7 @@
             border-left: 5px solid var(--ui-gold);
             padding: 20px 30px;
             backdrop-filter: blur(10px);
+            min-width: 400px;
         }
         #level-name {
             font-size: 2rem;
@@ -67,6 +69,33 @@
             color: #aaa;
             text-transform: uppercase;
         }
+        #key-counter {
+            margin-top: 10px;
+            font-size: 1.4rem;
+            color: var(--ui-gold);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .hud-powerup {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            background: var(--ui-bg);
+            padding: 15px 25px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            opacity: 0.3;
+            transition: opacity 0.3s;
+        }
+        .hud-powerup.active {
+            opacity: 1;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+            border: 1px solid var(--ui-gold);
+        }
+
         #inventory-sidebar {
             position: absolute;
             right: 0;
@@ -100,12 +129,12 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            font-size: 24px;
             transition: all 0.2s ease;
         }
         .inv-slot.active {
             border-color: var(--ui-gold);
             background: rgba(255, 215, 0, 0.1);
-            box-shadow: inset 0 0 10px rgba(255, 215, 0, 0.2);
         }
 
         #message-overlay {
@@ -157,11 +186,17 @@
     <div id="ui-layer">
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
-            <div id="objective">Waiting for Avalon to awaken.</div>
+            <div id="objective">Locate all 25 Access Keys.</div>
+            <div id="key-counter">🔑 <span id="keys-found">0</span> / 25</div>
+        </div>
+
+        <div class="hud-powerup" id="wing-indicator">
+            <span style="font-size: 2rem;">🪽</span>
+            <div>DOUBLE JUMP ENABLED</div>
         </div>
 
         <div id="inventory-sidebar">
-            <div class="inv-label">Storage Array</div>
+            <div class="inv-label">Access Keys</div>
             <div class="inv-slot" id="slot-0"></div>
             <div class="inv-slot" id="slot-1"></div>
             <div class="inv-slot" id="slot-2"></div>
@@ -177,9 +212,9 @@
 
     <div id="message-overlay">
         <div id="message-content">
-            <h1 id="overlay-title">EXCALIBUR DETECTED</h1>
+            <h1 id="overlay-title">SECTOR SECURED</h1>
             <p id="overlay-text">The search continues...</p>
-            <button class="btn" onclick="game.nextLevel()">ADVANCE TO NEXT SECTOR</button>
+            <button class="btn" id="next-btn" onclick="game.nextLevel()">ADVANCE TO NEXT SECTOR</button>
         </div>
     </div>
 </div>
@@ -187,9 +222,7 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * 1080p Professional Version with Background Parallax
- * Winter Scale Update: 125% for most states
- * Animation Cycle Update: Idle -> Walk1 -> Walk2 Cycle
+ * Non-Linear Level Update: Branching Paths, Double Jump, and Key Requirement
  */
 
 const CONFIG = {
@@ -200,33 +233,34 @@ const CONFIG = {
     JUMP_FORCE: 14,
     INTERNAL_WIDTH: 1920,
     INTERNAL_HEIGHT: 1080,
-    LEVEL_LENGTH: 25,
+    LEVEL_LENGTH: 30, // Increased for alternative routes
     UI_SIDEBAR_WIDTH: 120,
     PARALLAX_FACTOR: 0.3,
     PLAYER_BASE_HEIGHT: 110,
-    PLAYER_SCALED_HEIGHT: 137.5, // 125% of 110
-    ANIM_FPS: 10 // Control speed of walk animation
+    PLAYER_SCALED_HEIGHT: 137.5,
+    ANIM_FPS: 10,
+    REQUIRED_KEYS: 25
 };
 
 const LEVELS = [
-    { id: 1, name: "The Dungeon", color: "#0c0d14", accent: "#1e2135", hint: "Search for a way up.", bg: 'Level1Dungeon.png' },
-    { id: 2, name: "Servant Tunnels", color: "#1a1410", accent: "#2d241d", hint: "Navigate the mess of the kitchens.", bg: 'Level1Dungeon.png' },
-    { id: 3, name: "The Grand Ballroom", color: "#180f1b", accent: "#2d1b33", hint: "The finery hides many secrets.", bg: 'Level1Dungeon.png' },
-    { id: 4, name: "The Armory", color: "#1a1a1a", accent: "#2b2b2b", hint: "Excalibur must be here.", bg: 'Level1Dungeon.png' },
-    { id: 5, name: "Avalon Roof", color: "#0d1421", accent: "#16233a", hint: "To the helicopter!", combat: true, bg: 'Level1Dungeon.png' }
+    { id: 1, name: "The Vaults", color: "#0c0d14", accent: "#1e2135", hint: "Gather 25 keys to unlock the elevator.", bg: 'Level1Dungeon.png' },
+    { id: 2, name: "Neural Pathways", color: "#1a1410", accent: "#2d241d", hint: "Exploration is mandatory.", bg: 'Level1Dungeon.png' },
+    { id: 3, name: "Crystal Spires", color: "#180f1b", accent: "#2d1b33", hint: "Reach the peak of Avalon.", bg: 'Level1Dungeon.png' }
 ];
 
 class Player {
     constructor() {
         this.height = CONFIG.PLAYER_SCALED_HEIGHT;
         this.width = 72;      
-        this.reset();
-        this.inventory = [];
+        this.keysCollected = 0;
+        this.hasWings = false;
+        this.canDoubleJump = false;
         this.assetsLoaded = false;
         this.sprites = {};
         this.animFrame = 0;
         this.animTimer = 0;
         this.state = 'idle';
+        this.reset();
     }
 
     async loadAssets() {
@@ -271,7 +305,36 @@ class Player {
         this.state = 'idle';
         this.animFrame = 0;
         this.animTimer = 0;
+        this.keysCollected = 0;
+        this.hasWings = false;
+        this.canDoubleJump = false;
         this.height = CONFIG.PLAYER_SCALED_HEIGHT;
+        this.updateUI();
+    }
+
+    updateUI() {
+        const keySpan = document.getElementById('keys-found');
+        if(keySpan) keySpan.innerText = this.keysCollected;
+        
+        const wingInd = document.getElementById('wing-indicator');
+        if(wingInd) {
+            if(this.hasWings) wingInd.classList.add('active');
+            else wingInd.classList.remove('active');
+        }
+
+        // Fill Sidebar Slots
+        for(let i=0; i<10; i++) {
+            const slot = document.getElementById(`slot-${i}`);
+            if(slot) {
+                if(this.keysCollected > i) {
+                    slot.innerText = "🔑";
+                    slot.classList.add('active');
+                } else {
+                    slot.innerText = "";
+                    slot.classList.remove('active');
+                }
+            }
+        }
     }
 
     update(platforms, items) {
@@ -296,17 +359,25 @@ class Player {
         const currentHeight = (this.state === 'land') ? CONFIG.PLAYER_BASE_HEIGHT : CONFIG.PLAYER_SCALED_HEIGHT;
         const hitboxPadding = this.width * 0.25;
 
+        // Platform Collision
         for (let p of platforms) {
             if (this.x + hitboxPadding < p.x + p.w && this.x + this.width - hitboxPadding > p.x &&
                 this.y < p.y + p.h && this.y + currentHeight > p.y) {
+                
+                // Falling on top
                 if (this.vy > 0 && this.y + currentHeight - this.vy <= p.y) {
                     this.y = p.y - currentHeight;
                     this.vy = 0;
                     this.grounded = true;
-                } else if (this.vy < 0 && this.y - this.vy >= p.y + p.h) {
+                    this.canDoubleJump = this.hasWings;
+                } 
+                // Hit ceiling
+                else if (this.vy < 0 && this.y - this.vy >= p.y + p.h) {
                     this.y = p.y + p.h;
                     this.vy = 0;
-                } else if (this.vx > 0 && this.x + this.width - hitboxPadding <= p.x + 20) {
+                } 
+                // Wall collisions
+                else if (this.vx > 0 && this.x + this.width - hitboxPadding <= p.x + 20) {
                     this.x = p.x - this.width + hitboxPadding;
                     this.vx = 0;
                 } else if (this.vx < 0 && this.x + hitboxPadding >= p.x + p.w - 20) {
@@ -316,12 +387,22 @@ class Player {
             }
         }
 
-        if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && this.grounded) {
-            this.vy = -CONFIG.JUMP_FORCE;
-            this.grounded = false;
-            this.state = 'jump';
+        // Handle Jumping
+        if (keys['JumpPressed']) {
+            if (this.grounded) {
+                this.vy = -CONFIG.JUMP_FORCE;
+                this.grounded = false;
+                this.state = 'jump';
+                keys['JumpPressed'] = false;
+            } else if (this.canDoubleJump) {
+                this.vy = -CONFIG.JUMP_FORCE * 0.9;
+                this.canDoubleJump = false;
+                this.state = 'jump';
+                keys['JumpPressed'] = false;
+            }
         }
 
+        // Animation states
         if (this.grounded) {
             if (!wasGrounded) {
                 this.state = 'land';
@@ -331,7 +412,7 @@ class Player {
                     this.state = 'walk';
                     this.animTimer++;
                     if (this.animTimer >= 60 / CONFIG.ANIM_FPS) {
-                        this.animFrame = (this.animFrame + 1) % 4; // 4 frame loop: idle, walk1, walk2, walk1
+                        this.animFrame = (this.animFrame + 1) % 4; 
                         this.animTimer = 0;
                     }
                 } else {
@@ -346,25 +427,25 @@ class Player {
             this.state = 'jump';
         }
 
+        // Item Collection
         for (let item of items) {
             if (!item.collected && 
-                this.x < item.x + 40 && this.x + this.width > item.x &&
-                this.y < item.y + 40 && this.y + currentHeight > item.y) {
+                this.x < item.x + 50 && this.x + this.width > item.x &&
+                this.y < item.y + 50 && this.y + currentHeight > item.y) {
                 item.collected = true;
-                this.addToInventory(item);
+                if (item.type === 'key') {
+                    this.keysCollected++;
+                } else if (item.type === 'wings') {
+                    this.hasWings = true;
+                    this.canDoubleJump = true;
+                }
+                this.updateUI();
             }
         }
 
+        // Bounds check
         if (this.y > CONFIG.INTERNAL_HEIGHT + 400) this.reset();
-    }
-
-    addToInventory(item) {
-        if (this.inventory.length < 10) {
-            this.inventory.push(item);
-            const slot = document.getElementById(`slot-${this.inventory.length - 1}`);
-            slot.innerHTML = `<span style="color: gold; font-size: 30px;">★</span>`; 
-            slot.classList.add('active');
-        }
+        if (this.x < 0) this.x = 0;
     }
 
     draw(ctx, cameraX) {
@@ -375,18 +456,13 @@ class Player {
         let img = this.sprites.idle;
         let drawH = CONFIG.PLAYER_SCALED_HEIGHT;
 
-        // Animation selection logic
-        if (this.state === 'jump') {
-            img = this.sprites.jump;
-        } else if (this.state === 'land') {
+        if (this.state === 'jump') img = this.sprites.jump;
+        else if (this.state === 'land') {
             img = this.sprites.land;
             drawH = CONFIG.PLAYER_BASE_HEIGHT;
         } else if (this.state === 'walk') {
-            // Sequence: Idle -> Walk1 -> Walk2 -> Walk1
-            const walkSequence = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
-            img = walkSequence[this.animFrame] || this.sprites.idle;
-        } else {
-            img = this.sprites.idle;
+            const seq = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
+            img = seq[this.animFrame] || this.sprites.idle;
         }
 
         if (this.direction === -1) {
@@ -400,6 +476,12 @@ class Player {
         const xOffset = (this.width - drawW) / 2;
         
         ctx.drawImage(img, screenX + xOffset, this.y, drawW, drawH);
+
+        // Draw Wings if enabled
+        if (this.hasWings && this.state !== 'land') {
+            ctx.font = "40px Arial";
+            ctx.fillText("🪽", screenX - 10, this.y + 40);
+        }
         
         ctx.restore();
     }
@@ -418,7 +500,7 @@ class Game {
         this.platforms = [];
         this.items = [];
         this.backgrounds = {};
-        this.exit = { x: 0, y: 0, w: 100, h: 160 };
+        this.exit = { x: 0, y: 0, w: 120, h: 200 };
         this.cameraX = 0;
         this.isPaused = false;
 
@@ -458,44 +540,73 @@ class Game {
         document.getElementById('level-name').innerText = `SECTOR ${levelData.id}: ${levelData.name.toUpperCase()}`;
         document.getElementById('objective').innerText = `CMD: ${levelData.hint}`;
         
-        this.generateLevel();
+        this.generateNonLinearLevel();
         this.player.reset();
         this.cameraX = 0;
         this.isPaused = false;
         document.getElementById('message-overlay').style.display = 'none';
     }
 
-    generateLevel() {
+    generateNonLinearLevel() {
         this.platforms = [];
         this.items = [];
-        this.platforms.push({ x: 0, y: 800, w: 800, h: 400 });
-        let lastX = 700;
+        
+        // Start Platform
+        this.platforms.push({ x: 0, y: 800, w: 600, h: 400 });
+        
+        let lastX = 500;
         let lastY = 800;
+        let keysPlaced = 0;
 
+        // Generate branching paths
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
-            let gap = 150 + Math.random() * 120;
+            let gap = 140 + Math.random() * 100;
             let width = 300 + Math.random() * 400;
-            let heightChange = (Math.random() - 0.5) * 250;
-            let nextX = lastX + gap;
-            let nextY = Math.max(300, Math.min(900, lastY + heightChange));
-            this.platforms.push({ x: nextX, y: nextY, w: width, h: 60 });
+            let mainY = Math.max(200, Math.min(900, lastY + (Math.random() - 0.5) * 300));
             
+            // The main path
+            this.platforms.push({ x: lastX + gap, y: mainY, w: width, h: 60 });
+            
+            // Random chance for an alternative high/low route
             if (Math.random() > 0.4) {
-                this.items.push({ x: nextX + width/2 - 20, y: nextY - 60, collected: false });
+                let altY = mainY + (Math.random() > 0.5 ? -250 : 250);
+                altY = Math.max(150, Math.min(950, altY));
+                let altWidth = 250 + Math.random() * 300;
+                this.platforms.push({ x: lastX + gap + (width/4), y: altY, w: altWidth, h: 40 });
+                
+                // Place keys on branches primarily
+                if (keysPlaced < CONFIG.REQUIRED_KEYS) {
+                    this.items.push({ x: lastX + gap + (width/4) + (altWidth/2) - 20, y: altY - 60, type: 'key', collected: false });
+                    keysPlaced++;
+                }
+            } else {
+                // Key on main path if no branch
+                if (keysPlaced < CONFIG.REQUIRED_KEYS && Math.random() > 0.5) {
+                    this.items.push({ x: lastX + gap + width/2 - 20, y: mainY - 60, type: 'key', collected: false });
+                    keysPlaced++;
+                }
             }
-            lastX = nextX + width;
-            lastY = nextY;
+
+            // Occasional Wings placement
+            if (i === 5) {
+                this.items.push({ x: lastX + gap + 100, y: mainY - 100, type: 'wings', collected: false });
+            }
+
+            lastX += gap + width;
+            lastY = mainY;
         }
 
-        this.exit.x = lastX - 200;
-        this.exit.y = lastY - 160;
-        this.platforms.push({ x: lastX - 400, y: lastY, w: 800, h: 400 });
-    }
+        // Fill remaining keys if generator missed some
+        while (keysPlaced < CONFIG.REQUIRED_KEYS) {
+            let randPlat = this.platforms[Math.floor(Math.random() * this.platforms.length)];
+            this.items.push({ x: randPlat.x + randPlat.w/2, y: randPlat.y - 60, type: 'key', collected: false });
+            keysPlaced++;
+        }
 
-    nextLevel() {
-        this.currentLevelIndex++;
-        if (this.currentLevelIndex >= LEVELS.length) this.currentLevelIndex = 0;
-        this.initLevel();
+        // Exit Platform
+        this.exit.x = lastX + 200;
+        this.exit.y = lastY - 200;
+        this.platforms.push({ x: lastX, y: lastY, w: 800, h: 400 });
     }
 
     update() {
@@ -506,11 +617,15 @@ class Game {
         this.cameraX += (targetCam - this.cameraX) * 0.08;
         this.cameraX = Math.max(0, this.cameraX);
 
+        // Check Exit with Key Requirement
         if (this.player.x + this.player.width > this.exit.x && 
             this.player.x < this.exit.x + this.exit.w &&
             this.player.y + this.player.height > this.exit.y &&
             this.player.y < this.exit.y + this.exit.h) {
-            this.completeLevel();
+            
+            if (this.player.keysCollected >= CONFIG.REQUIRED_KEYS) {
+                this.completeLevel();
+            }
         }
     }
 
@@ -520,14 +635,8 @@ class Game {
         const title = document.getElementById('overlay-title');
         const text = document.getElementById('overlay-text');
 
-        if (this.currentLevelIndex === 3) {
-            title.innerText = "EXCALIBUR ACQUIRED";
-            text.innerText = "The power of Avalon is yours. Proceed to the roof for extraction.";
-        } else {
-            title.innerText = "SECTOR SECURED";
-            let nextPlace = LEVELS[this.currentLevelIndex + 1]?.name || "Final Conflict";
-            text.innerText = `Data suggests Excalibur is located in ${nextPlace}.`;
-        }
+        title.innerText = "SECTOR DECODED";
+        text.innerText = "All keys verified. Avalon's core is within reach.";
         overlay.style.display = 'flex';
     }
 
@@ -539,15 +648,11 @@ class Game {
             const bgScale = CONFIG.INTERNAL_HEIGHT / bgImg.naturalHeight;
             const bgWidth = bgImg.naturalWidth * bgScale;
             const parallaxX = -(this.cameraX * CONFIG.PARALLAX_FACTOR) % bgWidth;
-            
             for (let x = parallaxX - bgWidth; x < CONFIG.INTERNAL_WIDTH; x += bgWidth) {
                 this.ctx.drawImage(bgImg, x, 0, bgWidth, CONFIG.INTERNAL_HEIGHT);
             }
         } else {
-            let grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-            grad.addColorStop(0, level.color);
-            grad.addColorStop(1, "#050505");
-            this.ctx.fillStyle = grad;
+            this.ctx.fillStyle = level.color;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         }
     }
@@ -558,32 +663,46 @@ class Game {
         
         this.drawBackground();
 
+        // Platforms
         for (let p of this.platforms) {
             if (p.x + p.w > this.cameraX && p.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.fillStyle = level.accent;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, p.h);
-                this.ctx.fillStyle = "rgba(255,255,255,0.1)";
-                this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 4);
+                this.ctx.fillStyle = "rgba(255,255,255,0.08)";
+                this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 3);
             }
         }
 
+        // Items
+        this.ctx.textAlign = "center";
         for (let item of this.items) {
-            if (!item.collected && item.x + 40 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
-                this.ctx.fillStyle = "gold";
-                this.ctx.shadowBlur = 15;
-                this.ctx.shadowColor = "gold";
-                this.ctx.beginPath();
-                this.ctx.arc(item.x - this.cameraX + 20, item.y + 20, 12, 0, Math.PI*2);
-                this.ctx.fill();
-                this.ctx.shadowBlur = 0;
+            if (!item.collected && item.x + 80 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
+                this.ctx.font = item.type === 'key' ? "40px Arial" : "55px Arial";
+                this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX + 20, item.y + 35);
+                
+                // Subtle glow for keys
+                if(item.type === 'key') {
+                    this.ctx.shadowBlur = 10;
+                    this.ctx.shadowColor = "gold";
+                    this.ctx.strokeStyle = "rgba(255,215,0,0.3)";
+                    this.ctx.lineWidth = 2;
+                    this.ctx.strokeRect(item.x - this.cameraX, item.y, 40, 40);
+                    this.ctx.shadowBlur = 0;
+                }
             }
         }
 
-        this.ctx.fillStyle = "rgba(0,0,0,0.8)";
+        // Exit Door
+        const exitColor = this.player.keysCollected >= CONFIG.REQUIRED_KEYS ? "rgba(0, 255, 127, 0.4)" : "rgba(255, 0, 0, 0.2)";
+        this.ctx.fillStyle = exitColor;
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
-        this.ctx.strokeStyle = "gold";
-        this.ctx.lineWidth = 4;
+        this.ctx.strokeStyle = this.player.keysCollected >= CONFIG.REQUIRED_KEYS ? "#00ff7f" : "var(--danger)";
+        this.ctx.lineWidth = 5;
         this.ctx.strokeRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
+        
+        this.ctx.fillStyle = "white";
+        this.ctx.font = "20px Arial";
+        this.ctx.fillText(this.player.keysCollected >= CONFIG.REQUIRED_KEYS ? "UNLOCKED" : "LOCKED", this.exit.x - this.cameraX + this.exit.w/2, this.exit.y - 15);
 
         this.player.draw(this.ctx, this.cameraX);
     }
@@ -596,8 +715,18 @@ class Game {
 }
 
 const keys = {};
-window.addEventListener('keydown', e => keys[e.key] = true);
-window.addEventListener('keyup', e => keys[e.key] = false);
+window.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') {
+        keys['JumpPressed'] = true;
+    }
+});
+window.addEventListener('keyup', e => {
+    keys[e.key] = false;
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') {
+        keys['JumpPressed'] = false;
+    }
+});
 
 let game;
 window.onload = () => {
