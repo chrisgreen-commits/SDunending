@@ -181,9 +181,10 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Updates:
- * - Fixed Squashed Logic: Ensured consistent drawH for run cycle.
- * - Lagged State Transition: Prevented instant snapping to idle from high-speed running.
- * - Symmetrical Wings: Flipped the left wing horizontally.
+ * - Key Transparency: Set to 75% (0.75 opacity).
+ * - Animation State Fix: Run cycle strictly limited to Run1 and Run2.
+ * - Walk Cycle Fix: Walk cycle properly uses Idle, Walk1, Walk2 sequence.
+ * - Lagged State Transition: Improved logic for braking from run to walk/idle.
  */
 
 const CONFIG = {
@@ -309,8 +310,7 @@ class Player {
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
         
-        // When input is released, we keep isRunning true until friction slows us down
-        // to prevent instant frame snapping.
+        // Braking: Keep isRunning true until velocity drops significantly
         if (!inputLeft && !inputRight) {
             if (Math.abs(this.vx) < 3.0) {
                 this.isRunning = false;
@@ -347,7 +347,7 @@ class Player {
         // Logic to determine active collision height for physics
         let collisionHeight = CONFIG.PLAYER_SCALED_HEIGHT;
         if (this.state === 'land') collisionHeight = CONFIG.PLAYER_BASE_HEIGHT;
-        else if (this.state === 'run' || (this.isRunning && Math.abs(this.vx) > 3.0)) collisionHeight = CONFIG.PLAYER_RUN_HEIGHT;
+        else if (this.state === 'run') collisionHeight = CONFIG.PLAYER_RUN_HEIGHT;
 
         const hitboxPadding = this.width * 0.25;
 
@@ -391,39 +391,41 @@ class Player {
         if (this.grounded) {
             const isMovingActually = Math.abs(this.vx) > 1.5;
 
-            if (!wasGrounded && lastVy > 1.5) {
+            // Trigger landing state if we hit ground with significant force
+            if (!wasGrounded && lastVy > 3.0) {
                 this.state = 'land';
                 this.landStepDistance = 0;
             } 
             
             if (this.state === 'land') {
-                this.landStepDistance += Math.abs(this.vx);
+                this.landStepDistance += Math.abs(this.vx) + 5; // Fixed progress even if standing
                 if (this.landStepDistance >= CONFIG.LAND_STEP_REQUIREMENT) {
                     this.state = isMovingActually ? (this.isRunning ? 'run' : 'walk') : 'idle';
                 }
             } 
             else if (isMovingActually) {
-                // Determine if we are running based on current speed or isRunning toggle
-                const speedMagnitude = Math.abs(this.vx);
-                if (this.isRunning || speedMagnitude > 8.0) {
+                if (this.isRunning) {
                     this.state = 'run';
+                    if (this.animTimer++ >= 4) {
+                        this.animFrame = (this.animFrame + 1) % 2; 
+                        this.animTimer = 0;
+                    }
                 } else {
                     this.state = 'walk';
-                }
-
-                if (this.animTimer++ >= 4) {
-                    const frameCount = this.state === 'run' ? 2 : 4;
-                    this.animFrame = (this.animFrame + 1) % frameCount; 
-                    this.animTimer = 0;
+                    if (this.animTimer++ >= 6) {
+                        this.animFrame = (this.animFrame + 1) % 4; 
+                        this.animTimer = 0;
+                    }
                 }
             } 
             else {
                 this.state = 'idle';
                 this.animFrame = 0;
-                this.isRunning = false; // Kill run flag when fully stopped
+                this.isRunning = false;
             }
         } else {
-            if (Math.abs(this.vy) > 0.5) {
+            // Only update to jump state if not explicitly in land state (e.g. falling off a ledge)
+            if (this.state !== 'land' && Math.abs(this.vy) > 0.5) {
                 this.state = 'jump';
             }
         }
@@ -458,19 +460,28 @@ class Player {
         let img = this.sprites.idle;
         let drawH = CONFIG.PLAYER_SCALED_HEIGHT;
 
-        if (this.state === 'jump') {
-            img = this.sprites.jump;
-        } else if (this.state === 'land') {
-            img = this.sprites.land;
-            drawH = CONFIG.PLAYER_BASE_HEIGHT;
-        } else if (this.state === 'run') {
-            const seq = [this.sprites.run1, this.sprites.run2];
-            img = seq[this.animFrame % 2] || this.sprites.run1;
-            drawH = CONFIG.PLAYER_RUN_HEIGHT; 
-        } else if (this.state === 'walk') {
-            const seq = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
-            img = seq[this.animFrame % 4] || this.sprites.idle;
-            drawH = CONFIG.PLAYER_SCALED_HEIGHT;
+        // Determine which sprite to use and height to draw based on state
+        switch(this.state) {
+            case 'jump':
+                img = this.sprites.jump;
+                drawH = CONFIG.PLAYER_SCALED_HEIGHT;
+                break;
+            case 'land':
+                img = this.sprites.land;
+                drawH = CONFIG.PLAYER_BASE_HEIGHT;
+                break;
+            case 'run':
+                img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2;
+                drawH = CONFIG.PLAYER_RUN_HEIGHT;
+                break;
+            case 'walk':
+                const walkCycle = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
+                img = walkCycle[this.animFrame % 4];
+                drawH = CONFIG.PLAYER_SCALED_HEIGHT;
+                break;
+            default: // idle
+                img = this.sprites.idle;
+                drawH = CONFIG.PLAYER_SCALED_HEIGHT;
         }
 
         if (this.direction === -1) {
@@ -493,12 +504,12 @@ class Player {
             ctx.shadowColor = "gold";
             const wingY = this.y + 70 + yOffset;
 
-            // Right wing (standard)
+            // Right wing
             ctx.fillText("🪽", screenX + this.width + 5, wingY);
             
             // Left wing (flipped)
             ctx.save();
-            ctx.translate(screenX - 45 + 32, wingY - 32); // Adjust center
+            ctx.translate(screenX - 45 + 32, wingY - 32);
             ctx.scale(-1, 1);
             ctx.fillText("🪽", -32, 32);
             ctx.restore();
@@ -715,7 +726,10 @@ class Game {
                 this.ctx.shadowBlur = 25;
                 this.ctx.shadowColor = item.type === 'key' ? "gold" : "cyan";
                 this.ctx.font = item.type === 'key' ? "55px Arial" : "75px Arial";
-                this.ctx.globalAlpha = 0.95 + Math.sin(Date.now() / 200) * 0.05;
+                
+                // Keys only 75% transparent (0.75 opacity)
+                this.ctx.globalAlpha = 0.75; 
+                
                 const bounce = Math.sin(Date.now() / 300) * 15;
                 this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX, item.y + bounce);
                 this.ctx.globalAlpha = 1.0;
@@ -746,20 +760,22 @@ class Game {
 const keys = {};
 window.addEventListener('keydown', e => {
     const now = Date.now();
-    if ((e.key === 'd' || e.key === 'ArrowRight' || e.key === 'a' || e.key === 'ArrowLeft') && !keys[e.key]) {
-        if (e.key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
+    const key = e.key.toLowerCase();
+    if ((key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft') && !keys[key]) {
+        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
             game.player.isRunning = true;
         }
         game.player.lastTapTime = now;
-        game.player.lastTapKey = e.key;
+        game.player.lastTapKey = key;
     }
-    keys[e.key] = true;
-    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') keys['JumpPressed'] = true;
+    keys[key] = true;
+    if (key === 'arrowup' || key === 'w' || e.key === ' ') keys['JumpPressed'] = true;
 });
 
 window.addEventListener('keyup', e => {
-    keys[e.key] = false;
-    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') keys['JumpPressed'] = false;
+    const key = e.key.toLowerCase();
+    keys[key] = false;
+    if (key === 'arrowup' || key === 'w' || e.key === ' ') keys['JumpPressed'] = false;
 });
 
 let game;
