@@ -181,8 +181,8 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Updates:
- * - Unified Run Heights: Enforced exact fixed height (CONFIG.PLAYER_RUN_HEIGHT) for all run frames to eliminate jitter.
- * - Key Visibility: Maintains high opacity (0.95), strong golden glow, and 55px scale.
+ * - Stabilized Run Animation: Removed width jitter and state flickering.
+ * - Unified Heights: Enforced exact heights and fixed vertical anchoring to the player model.
  */
 
 const CONFIG = {
@@ -383,7 +383,7 @@ class Player {
         }
 
         if (this.grounded) {
-            const isMovingActually = Math.abs(this.vx) > 0.6;
+            const isMovingActually = Math.abs(this.vx) > 1.5;
 
             if (!wasGrounded && lastVy > 1.5) {
                 this.state = 'land';
@@ -398,9 +398,7 @@ class Player {
             } 
             else if (isMovingActually) {
                 this.state = this.isRunning ? 'run' : 'walk';
-                this.animTimer++;
-                const fps = this.isRunning ? CONFIG.RUN_ANIM_FPS : CONFIG.ANIM_FPS;
-                if (this.animTimer >= 60 / fps) {
+                if (this.animTimer++ >= 4) {
                     const frameCount = this.isRunning ? 2 : 4;
                     this.animFrame = (this.animFrame + 1) % frameCount; 
                     this.animTimer = 0;
@@ -454,7 +452,7 @@ class Player {
         } else if (this.state === 'run') {
             const seq = [this.sprites.run1, this.sprites.run2];
             img = seq[this.animFrame % 2] || this.sprites.run1;
-            drawH = CONFIG.PLAYER_RUN_HEIGHT; // Unified height for run state
+            drawH = CONFIG.PLAYER_RUN_HEIGHT; 
         } else if (this.state === 'walk') {
             const seq = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
             img = seq[this.animFrame % 4] || this.sprites.idle;
@@ -466,13 +464,9 @@ class Player {
             ctx.translate(-(screenX + this.width / 2), 0);
         }
 
-        // Standardize width based on the defined drawing height and the image's original aspect ratio
-        const aspect = img.naturalWidth / img.naturalHeight;
-        const drawW = drawH * aspect;
+        const drawW = this.width;
         const xOffset = (this.width - drawW) / 2;
-        
-        // Vertical positioning: Anchor to the "floor" of the player's collision box
-        const yOffset = CONFIG.PLAYER_SCALED_HEIGHT - drawH;
+        const yOffset = this.height - drawH;
         
         ctx.drawImage(img, screenX + xOffset, this.y + yOffset, drawW, drawH);
 
