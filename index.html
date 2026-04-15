@@ -182,8 +182,7 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fix: Animation state persistence and Kick scaling.
- * Logic: Ensure run cycle overrides previous states strictly when grounded.
+ * Fix: Forced animation state priority to prevent "stuck" graphics in run cycle.
  */
 
 const CONFIG = {
@@ -208,7 +207,7 @@ const CONFIG = {
     ATTACK_COOLDOWN: 15,
     PLATFORM_COLOR: '#8d9196',
     PLATFORM_HIGHLIGHT: '#b0b4b9',
-    KICK_SCALE: 1.25 // Scale kick graphic
+    KICK_SCALE: 1.25
 };
 
 const LEVELS = [
@@ -351,11 +350,9 @@ class Player {
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
         
+        // If no movement keys are held, turn off sprint
         if (!inputLeft && !inputRight) {
-            // Decelerate naturally
-            if (Math.abs(this.vx) < 1.0) {
-                this.isRunning = false;
-            }
+            this.isRunning = false;
         }
 
         const accel = this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED;
@@ -405,9 +402,9 @@ class Player {
 
         this.handleInput();
 
+        // Move logic
         this.vx *= CONFIG.FRICTION;
         this.x += this.vx;
-
         this.vy += CONFIG.GRAVITY;
         this.y += this.vy;
         
@@ -415,15 +412,12 @@ class Player {
         const isPunching = keys['ArrowDown'] || keys['s'];
         const isKicking = keys['KickPressed'];
 
-        // Strict state detection for running vs walking
+        // Logic check: ensure isRunning only resets if we drop significantly below walk speed
         const horizontalSpeed = Math.abs(this.vx);
-        if (horizontalSpeed > CONFIG.MAX_WALK_SPEED + 0.5) {
-            this.isRunning = true;
-        } else if (horizontalSpeed < 0.5) {
+        if (horizontalSpeed < 0.2) {
             this.isRunning = false;
         }
 
-        // Determine profile height for physics
         const isLowProfile = (this.isRunning && this.grounded) || isPunching;
         let currentPhysHeight = isLowProfile ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         const hitboxPadding = 30;
@@ -458,7 +452,6 @@ class Player {
 
         this.grounded = foundGround;
 
-        // Jump Logic
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.canDoubleJump)) {
                 this.vy = this.grounded ? -CONFIG.JUMP_FORCE : -CONFIG.JUMP_FORCE * 0.95;
@@ -468,17 +461,19 @@ class Player {
             }
         }
 
-        // --- ANIMATION STATE LOGIC (CLEANED UP) ---
+        // --- FIXED ANIMATION STATE LOGIC ---
+        // We prioritize states by speed and grounded status to ensure no "sticky" graphics.
         if (!this.grounded) {
             this.state = isKicking ? 'kick' : 'jump';
         } else {
-            // Grounded logic
             if (isKicking) {
                 this.state = 'kick';
             } else if (isPunching) {
                 this.state = 'land';
-            } else if (Math.abs(this.vx) > 1.0) {
-                if (this.isRunning) {
+            } else if (horizontalSpeed > 1.0) {
+                // Determine if we should show Run or Walk cycle
+                // If isRunning is true AND speed is high, force RUN.
+                if (this.isRunning && horizontalSpeed > CONFIG.MAX_WALK_SPEED - 1.0) {
                     this.state = 'run';
                     if (this.animTimer++ >= 4) {
                         this.animFrame = (this.animFrame + 1) % 2; 
@@ -494,6 +489,7 @@ class Player {
             } else {
                 this.state = 'idle';
                 this.animFrame = 0;
+                this.animTimer = 0;
             }
         }
 
@@ -541,7 +537,7 @@ class Player {
             case 'kick':
                 img = this.sprites.kick;
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
-                scaleFactor = CONFIG.KICK_SCALE; // Apply 125% scale
+                scaleFactor = CONFIG.KICK_SCALE; 
                 break;
             case 'run':
                 img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2;
@@ -561,7 +557,6 @@ class Player {
         let finalDrawH = targetDrawH * scaleFactor;
         let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
         
-        // Update width reference for collision
         this.width = targetDrawH * aspectRatio;
 
         if (this.direction === -1) {
@@ -570,9 +565,7 @@ class Player {
             ctx.translate(-(screenX + (finalDrawW / 2)), 0);
         }
 
-        // If scaling is applied, we adjust Y so her feet stay on the ground
         let yDrawOffset = (targetDrawH - finalDrawH); 
-        
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
 
         if (this.hasWings) {
@@ -787,13 +780,17 @@ class Game {
 const keys = {};
 window.addEventListener('keydown', e => {
     const now = Date.now(), key = e.key.toLowerCase();
-    if ((key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft') && !keys[key]) {
+    const isMoveKey = (key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft');
+    
+    if (isMoveKey && !keys[key]) {
+        // Double tap logic
         if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
             game.player.isRunning = true;
         }
         game.player.lastTapTime = now; 
         game.player.lastTapKey = key;
     }
+    
     keys[key] = true;
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = true;
     if (key === ' ' || key === 'r') keys['KickPressed'] = true;
