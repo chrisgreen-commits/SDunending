@@ -184,7 +184,7 @@
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.02</div>
+        <div id="watermark">AVALON UNENDING v0.03</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -226,11 +226,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.02
+ * Version: 0.03
  */
 
 const CONFIG = {
-    VERSION: "0.02",
+    VERSION: "0.03",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -255,7 +255,7 @@ const CONFIG = {
     ATTACK_COOLDOWN: 15,
     PLATFORM_COLOR: '#8d9196',
     PLATFORM_HIGHLIGHT: '#b0b4b9',
-    KICK_SCALE: 1.25,
+    KICK_SCALE: 1.1875, // 95% of 1.25
     LOW_KICK_SCALE: 1.068
 };
 
@@ -627,7 +627,6 @@ class Player {
         }
 
         if (this.y > CONFIG.INTERNAL_HEIGHT + 1000) {
-            // FIX: Reference game.bricks instead of this.bricks (which is undefined on Player)
             let respawn = this.game.bricks.find(b => !b.destroyed);
             if (respawn) this.spawnAt(respawn.x, respawn.y - 200);
             else this.spawnAt(0, 500);
