@@ -182,7 +182,7 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fix: Wing positioning adjusted to 75% character height.
+ * Fix: Added Low Kick mechanic (Down + Kick) targeting floor-level bricks.
  */
 
 const CONFIG = {
@@ -316,7 +316,8 @@ class Player {
             run2: 'WinterRun2.png',
             jump: 'WinterJumpS.png',
             land: 'WinterLandS.png',
-            kick: 'WinterKick.png'
+            kick: 'WinterKick.png',
+            kickLow: 'WinterKick2.png'
         };
         const loadImg = (src) => new Promise((resolve) => {
             const img = new Image();
@@ -413,10 +414,16 @@ class Player {
         }
     }
 
-    performKick(bricks) {
+    performKick(bricks, isLow = false) {
         if (this.attackTimer > 0) return;
+        
+        // Low kick target is the brick immediately above floor level (range of the bottom half of the sprite)
+        // High kick target is mid-body range
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
-        const ky = this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2;
+        const ky = isLow ? 
+                  (this.y + CONFIG.PLAYER_PHYS_HEIGHT - 30) : // Targeted lower towards feet
+                  (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);   // Mid-body height
+        
         for (let b of bricks) {
             if (!b.destroyed && kx > b.x && kx < b.x + b.w && ky > b.y && ky < b.y + b.h) {
                 b.damage();
@@ -438,7 +445,8 @@ class Player {
         this.y += this.vy;
         
         let foundGround = false;
-        const isPunching = (keys['ArrowDown'] || keys['s']) && this.grounded;
+        const isHoldingDown = (keys['ArrowDown'] || keys['s']);
+        const isPunching = isHoldingDown && this.grounded;
         const isKicking = keys['KickPressed'];
 
         const horizontalSpeed = Math.abs(this.vx);
@@ -449,8 +457,17 @@ class Player {
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
         const physPad = Math.max(0, (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2);
 
-        if (isPunching) this.performPunch(bricks);
-        if (isKicking) this.performKick(bricks);
+        // Logic check: if holding down AND kicking while on ground, it's a LOW kick
+        if (isKicking) {
+            if (isHoldingDown && this.grounded) {
+                this.performKick(bricks, true);
+                this.state = 'kickLow';
+            } else {
+                this.performKick(bricks, false);
+            }
+        } else if (isPunching) {
+            this.performPunch(bricks);
+        }
 
         for (let b of bricks) {
             if (b.destroyed) continue;
@@ -514,7 +531,7 @@ class Player {
                 newState = 'land';
                 this.landTimer = 6;
             } else if (isKicking) {
-                newState = 'kick';
+                newState = (isHoldingDown && this.grounded) ? 'kickLow' : 'kick';
             } else if (isPunching) {
                 newState = 'land'; 
             } else if (horizontalSpeed > 1.5) {
@@ -598,6 +615,11 @@ class Player {
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 scaleFactor = CONFIG.KICK_SCALE; 
                 break;
+            case 'kickLow':
+                img = this.sprites.kickLow;
+                targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
+                scaleFactor = CONFIG.KICK_SCALE;
+                break;
             case 'idle':
             default:
                 img = this.sprites.idle;
@@ -612,12 +634,11 @@ class Player {
 
         let yDrawOffset = CONFIG.PLAYER_PHYS_HEIGHT - finalDrawH;
         
-        // --- IMPROVED WING POSITIONING ---
-        // Wing shoulder anchor: 75% up from the bottom of the visible sprite
+        // Wing positioning logic remains based on 75% height
         const shoulderY = (this.y + CONFIG.PLAYER_PHYS_HEIGHT) - (finalDrawH * 0.75);
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
-        // 1. Draw "Front" Wing (actually behind)
+        // 1. Draw "Front" Wing (behind)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -625,12 +646,10 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             if (this.direction === 1) {
-                // Left wing (behind char)
                 ctx.translate(screenX - 45 + 32, shoulderY - 32);
                 ctx.scale(-1, 1);
                 ctx.fillText("🪽", -32, 32);
             } else {
-                // Right wing (behind char)
                 ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
             }
             ctx.restore();
@@ -646,7 +665,7 @@ class Player {
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
         ctx.restore();
 
-        // 2. Draw "Back" Wing (actually front)
+        // 2. Draw "Back" Wing (front)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -654,10 +673,8 @@ class Player {
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
             if (this.direction === 1) {
-                // Right wing (in front of char)
                 ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
             } else {
-                // Left wing (in front of char)
                 ctx.translate(screenX - 45 + 32, shoulderY - 32);
                 ctx.scale(-1, 1);
                 ctx.fillText("🪽", -32, 32);
