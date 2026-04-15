@@ -188,6 +188,8 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * 1080p Professional Version with Background Parallax
+ * Winter Scale Update: 125% for most states
+ * Animation Cycle Update: Idle -> Walk1 -> Walk2 Cycle
  */
 
 const CONFIG = {
@@ -200,7 +202,10 @@ const CONFIG = {
     INTERNAL_HEIGHT: 1080,
     LEVEL_LENGTH: 25,
     UI_SIDEBAR_WIDTH: 120,
-    PARALLAX_FACTOR: 0.5 // Background moves at half speed
+    PARALLAX_FACTOR: 0.3,
+    PLAYER_BASE_HEIGHT: 110,
+    PLAYER_SCALED_HEIGHT: 137.5, // 125% of 110
+    ANIM_FPS: 10 // Control speed of walk animation
 };
 
 const LEVELS = [
@@ -213,13 +218,13 @@ const LEVELS = [
 
 class Player {
     constructor() {
-        this.baseHeight = 110; 
+        this.height = CONFIG.PLAYER_SCALED_HEIGHT;
         this.width = 72;      
-        this.height = this.baseHeight;
         this.reset();
         this.inventory = [];
         this.assetsLoaded = false;
         this.sprites = {};
+        this.animFrame = 0;
         this.animTimer = 0;
         this.state = 'idle';
     }
@@ -227,7 +232,8 @@ class Player {
     async loadAssets() {
         const sources = {
             idle: 'WinterIdle.png',
-            walk: 'WinterWalk1.png', 
+            walk1: 'WinterWalk1.png', 
+            walk2: 'WinterWalk2.png', 
             jump: 'WinterJumpS.png',
             land: 'WinterLandS.png'
         };
@@ -252,11 +258,6 @@ class Player {
         }));
 
         this.sprites = Object.fromEntries(results);
-        
-        if (this.sprites.idle && this.sprites.idle.naturalHeight) {
-            const aspectRatio = this.sprites.idle.naturalWidth / this.sprites.idle.naturalHeight;
-            this.width = this.height * aspectRatio;
-        }
         this.assetsLoaded = true;
     }
 
@@ -268,20 +269,20 @@ class Player {
         this.grounded = false;
         this.direction = 1; 
         this.state = 'idle';
+        this.animFrame = 0;
+        this.animTimer = 0;
+        this.height = CONFIG.PLAYER_SCALED_HEIGHT;
     }
 
     update(platforms, items) {
         let wasGrounded = this.grounded;
-        let isMoving = false;
-
+        
         if (keys['ArrowRight'] || keys['d']) {
             this.vx += CONFIG.PLAYER_SPEED;
             this.direction = 1;
-            isMoving = true;
         } else if (keys['ArrowLeft'] || keys['a']) {
             this.vx -= CONFIG.PLAYER_SPEED;
             this.direction = -1;
-            isMoving = true;
         }
         
         this.vx = Math.max(-CONFIG.MAX_SPEED, Math.min(CONFIG.MAX_SPEED, this.vx));
@@ -292,12 +293,14 @@ class Player {
         this.y += this.vy;
         this.grounded = false;
 
+        const currentHeight = (this.state === 'land') ? CONFIG.PLAYER_BASE_HEIGHT : CONFIG.PLAYER_SCALED_HEIGHT;
         const hitboxPadding = this.width * 0.25;
+
         for (let p of platforms) {
             if (this.x + hitboxPadding < p.x + p.w && this.x + this.width - hitboxPadding > p.x &&
-                this.y < p.y + p.h && this.y + this.height > p.y) {
-                if (this.vy > 0 && this.y + this.height - this.vy <= p.y) {
-                    this.y = p.y - this.height;
+                this.y < p.y + p.h && this.y + currentHeight > p.y) {
+                if (this.vy > 0 && this.y + currentHeight - this.vy <= p.y) {
+                    this.y = p.y - currentHeight;
                     this.vy = 0;
                     this.grounded = true;
                 } else if (this.vy < 0 && this.y - this.vy >= p.y + p.h) {
@@ -322,12 +325,21 @@ class Player {
         if (this.grounded) {
             if (!wasGrounded) {
                 this.state = 'land';
+                setTimeout(() => { if(this.state === 'land') this.state = 'idle'; }, 150);
             } else {
-                if (Math.abs(this.vx) > 0.1) {
+                if (Math.abs(this.vx) > 0.5) {
                     this.state = 'walk';
                     this.animTimer++;
+                    if (this.animTimer >= 60 / CONFIG.ANIM_FPS) {
+                        this.animFrame = (this.animFrame + 1) % 4; // 4 frame loop: idle, walk1, walk2, walk1
+                        this.animTimer = 0;
+                    }
                 } else {
-                    if (this.state !== 'land') this.state = 'idle';
+                    if (this.state !== 'land') {
+                        this.state = 'idle';
+                        this.animFrame = 0;
+                        this.animTimer = 0;
+                    }
                 }
             }
         } else {
@@ -337,7 +349,7 @@ class Player {
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 40 && this.x + this.width > item.x &&
-                this.y < item.y + 40 && this.y + this.height > item.y) {
+                this.y < item.y + 40 && this.y + currentHeight > item.y) {
                 item.collected = true;
                 this.addToInventory(item);
             }
@@ -356,33 +368,39 @@ class Player {
     }
 
     draw(ctx, cameraX) {
+        if (!this.assetsLoaded) return;
         ctx.save();
-        let screenX = this.x - cameraX;
         
+        let screenX = this.x - cameraX;
+        let img = this.sprites.idle;
+        let drawH = CONFIG.PLAYER_SCALED_HEIGHT;
+
+        // Animation selection logic
+        if (this.state === 'jump') {
+            img = this.sprites.jump;
+        } else if (this.state === 'land') {
+            img = this.sprites.land;
+            drawH = CONFIG.PLAYER_BASE_HEIGHT;
+        } else if (this.state === 'walk') {
+            // Sequence: Idle -> Walk1 -> Walk2 -> Walk1
+            const walkSequence = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
+            img = walkSequence[this.animFrame] || this.sprites.idle;
+        } else {
+            img = this.sprites.idle;
+        }
+
         if (this.direction === -1) {
             ctx.translate(screenX + this.width / 2, 0);
             ctx.scale(-1, 1);
             ctx.translate(-(screenX + this.width / 2), 0);
         }
 
-        if (this.assetsLoaded) {
-            let img = this.sprites.idle;
-            let bounce = 0;
-
-            switch(this.state) {
-                case 'jump': img = this.sprites.jump; break;
-                case 'land': img = this.sprites.land; break;
-                case 'walk': 
-                    img = this.sprites.walk; 
-                    bounce = Math.sin(this.animTimer * 0.2) * 5;
-                    break;
-                default: img = this.sprites.idle;
-            }
-
-            const drawW = img.naturalWidth ? (this.height * (img.naturalWidth / img.naturalHeight)) : this.width;
-            const xOffset = (this.width - drawW) / 2;
-            ctx.drawImage(img, screenX + xOffset, this.y + bounce, drawW, this.height);
-        }
+        const aspect = img.naturalWidth / img.naturalHeight;
+        const drawW = drawH * aspect;
+        const xOffset = (this.width - drawW) / 2;
+        
+        ctx.drawImage(img, screenX + xOffset, this.y, drawW, drawH);
+        
         ctx.restore();
     }
 }
@@ -518,19 +536,14 @@ class Game {
         const bgImg = this.backgrounds[level.bg];
         
         if (bgImg) {
-            // Scale image to fit screen height
             const bgScale = CONFIG.INTERNAL_HEIGHT / bgImg.naturalHeight;
             const bgWidth = bgImg.naturalWidth * bgScale;
-            
-            // Calculate parallax offset
             const parallaxX = -(this.cameraX * CONFIG.PARALLAX_FACTOR) % bgWidth;
             
-            // Draw tiles to cover screen
             for (let x = parallaxX - bgWidth; x < CONFIG.INTERNAL_WIDTH; x += bgWidth) {
                 this.ctx.drawImage(bgImg, x, 0, bgWidth, CONFIG.INTERNAL_HEIGHT);
             }
         } else {
-            // Fallback gradient
             let grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
             grad.addColorStop(0, level.color);
             grad.addColorStop(1, "#050505");
@@ -545,18 +558,15 @@ class Game {
         
         this.drawBackground();
 
-        // Platforms
         for (let p of this.platforms) {
             if (p.x + p.w > this.cameraX && p.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.fillStyle = level.accent;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, p.h);
-                // Detail line
                 this.ctx.fillStyle = "rgba(255,255,255,0.1)";
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 4);
             }
         }
 
-        // Items
         for (let item of this.items) {
             if (!item.collected && item.x + 40 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.fillStyle = "gold";
@@ -569,7 +579,6 @@ class Game {
             }
         }
 
-        // Exit
         this.ctx.fillStyle = "rgba(0,0,0,0.8)";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
         this.ctx.strokeStyle = "gold";
