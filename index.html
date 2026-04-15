@@ -182,11 +182,8 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Updates:
- * - Destructible Brick Platforms: Platforms are now composed of 60x60 brick grids.
- * - Punching Mechanic: Hold S/Down to punch bricks beneath feet. 3 hits breaks a brick.
- * - Kicking Mechanic: Space / Right Shoulder Button kicks bricks in front.
- * - Animation: winterKick.png used for the kick motion.
+ * Fix: Overlapping sprites during run-cycle transitions.
+ * Logic: Ensure 'grounded' state immediately clears the 'jump' animation state.
  */
 
 const CONFIG = {
@@ -208,7 +205,7 @@ const CONFIG = {
     MAX_JUMP_REACH: 440,
     BRICK_SIZE: 60,
     BRICK_HEALTH: 3,
-    ATTACK_COOLDOWN: 15, // frames between hits
+    ATTACK_COOLDOWN: 15,
     PLATFORM_COLOR: '#8d9196',
     PLATFORM_HIGHLIGHT: '#b0b4b9'
 };
@@ -239,18 +236,12 @@ class Brick {
     draw(ctx, cameraX) {
         if (this.destroyed) return;
         const screenX = this.x - cameraX;
-        
         ctx.fillStyle = this.flash > 0 ? '#fff' : CONFIG.PLATFORM_COLOR;
         if (this.flash > 0) this.flash--;
-        
         ctx.fillRect(screenX, this.y, this.w, this.h);
-        
-        // Brick details
         ctx.strokeStyle = CONFIG.PLATFORM_HIGHLIGHT;
         ctx.lineWidth = 2;
         ctx.strokeRect(screenX + 2, this.y + 2, this.w - 4, this.h - 4);
-        
-        // Cracks based on health
         if (this.health < CONFIG.BRICK_HEALTH) {
             ctx.beginPath();
             ctx.strokeStyle = "rgba(0,0,0,0.5)";
@@ -303,7 +294,7 @@ class Player {
                 const canvas = document.createElement('canvas');
                 canvas.width = 100; canvas.height = 150;
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = this.isRunning ? '#e74c3c' : '#3498db';
+                ctx.fillStyle = '#3498db';
                 ctx.fillRect(0,0,100,150);
                 resolve(canvas);
             };
@@ -348,7 +339,6 @@ class Player {
     updateUI() {
         const keySpan = document.getElementById('keys-found');
         if(keySpan) keySpan.innerText = this.keysCollected;
-        
         const wingInd = document.getElementById('wing-indicator');
         if(wingInd) {
             if(this.hasWings) wingInd.classList.add('active');
@@ -357,12 +347,11 @@ class Player {
     }
 
     handleInput() {
-        // Prevent movement during heavy actions if desired, but here we allow it for agility
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
         
         if (!inputLeft && !inputRight) {
-            if (Math.abs(this.vx) < 3.0) {
+            if (Math.abs(this.vx) < 1.0) {
                 this.isRunning = false;
             }
         }
@@ -383,10 +372,8 @@ class Player {
 
     performPunch(bricks) {
         if (this.attackTimer > 0) return;
-        // Punch center beneath feet
         const px = this.x + this.width / 2;
-        const py = this.y + CONFIG.PLAYER_CROUCH_HEIGHT + 10;
-        
+        const py = this.y + (this.isRunning ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT) + 10;
         for (let b of bricks) {
             if (!b.destroyed && px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h + 20) {
                 b.damage();
@@ -398,10 +385,8 @@ class Player {
 
     performKick(bricks) {
         if (this.attackTimer > 0) return;
-        // Kick in front of direction
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
-        const ky = this.y + CONFIG.PLAYER_BASE_HEIGHT / 2;
-        
+        const ky = this.y + (this.isRunning ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT) / 2;
         for (let b of bricks) {
             if (!b.destroyed && kx > b.x && kx < b.x + b.w && ky > b.y && ky < b.y + b.h) {
                 b.damage();
@@ -423,41 +408,32 @@ class Player {
         this.y += this.vy;
         
         let foundGround = false;
-        
-        // Controls
         const isPunching = keys['ArrowDown'] || keys['s'];
         const isKicking = keys['KickPressed'];
 
-        // Determine physical height for collision
-        const isLowProfile = this.state === 'run' || isPunching;
+        // Determine hitbox height
+        const isLowProfile = (this.isRunning && this.grounded) || isPunching;
         let currentPhysHeight = isLowProfile ? CONFIG.PLAYER_CROUCH_HEIGHT : CONFIG.PLAYER_BASE_HEIGHT;
         const hitboxPadding = 30;
 
-        if (isPunching && this.grounded) {
-            this.performPunch(bricks);
-        }
-        if (isKicking) {
-            this.performKick(bricks);
-        }
+        if (isPunching && this.grounded) this.performPunch(bricks);
+        if (isKicking) this.performKick(bricks);
 
         for (let b of bricks) {
             if (b.destroyed) continue;
             if (this.x + hitboxPadding < b.x + b.w && this.x + this.width - hitboxPadding > b.x &&
                 this.y < b.y + b.h && this.y + currentPhysHeight > b.y) {
                 
-                // Ground detection
                 if (this.vy >= 0 && this.y + currentPhysHeight - this.vy <= b.y + 25) {
                     this.y = b.y - currentPhysHeight;
                     this.vy = 0;
                     foundGround = true;
                     if (this.hasWings) this.canDoubleJump = true;
                 } 
-                // Ceiling
                 else if (this.vy < 0 && this.y - this.vy >= b.y + b.h - 25) {
                     this.y = b.y + b.h;
                     this.vy = 0;
                 } 
-                // Wall
                 else if (this.vx > 0 && this.x + this.width - hitboxPadding <= b.x + 20) {
                     this.x = b.x - this.width + hitboxPadding;
                     this.vx = 0;
@@ -470,28 +446,25 @@ class Player {
 
         this.grounded = foundGround;
 
-        // Jump Handling (W or ArrowUp)
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.canDoubleJump)) {
                 this.vy = this.grounded ? -CONFIG.JUMP_FORCE : -CONFIG.JUMP_FORCE * 0.95;
                 if (!this.grounded) this.canDoubleJump = false;
                 this.grounded = false;
-                this.state = 'jump';
                 keys['JumpPressed'] = false;
             }
         }
 
-        // State Machine for Animations
-        if (this.grounded) {
-            const isMovingActually = Math.abs(this.vx) > 1.5;
-
+        // Logic fix: Priority-based animation state update
+        if (!this.grounded) {
+            this.state = isKicking ? 'kick' : 'jump';
+        } else {
+            const isMovingActually = Math.abs(this.vx) > 1.0;
             if (isKicking) {
                 this.state = 'kick';
-            }
-            else if (isPunching) {
-                this.state = 'land'; // Using land frame for the 'punch' stance
-            } 
-            else if (isMovingActually) {
+            } else if (isPunching) {
+                this.state = 'land';
+            } else if (isMovingActually) {
                 if (this.isRunning) {
                     this.state = 'run';
                     if (this.animTimer++ >= 4) {
@@ -505,22 +478,16 @@ class Player {
                         this.animTimer = 0;
                     }
                 }
-            } 
-            else {
+            } else {
                 this.state = 'idle';
                 this.animFrame = 0;
-                this.isRunning = false;
             }
-        } else {
-            this.state = isKicking ? 'kick' : 'jump';
         }
 
-        // Item Collection
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
                 this.y < item.y + 60 && this.y + currentPhysHeight > item.y) {
-                
                 item.collected = true;
                 if (item.type === 'key') this.keysCollected++;
                 else if (item.type === 'wings') {
@@ -531,9 +498,7 @@ class Player {
             }
         }
 
-        // Death / Bounds Check
         if (this.y > CONFIG.INTERNAL_HEIGHT + 1000) {
-            // Find a valid brick to spawn on
             let respawn = bricks.find(b => !b.destroyed);
             if (respawn) this.spawnAt(respawn.x, respawn.y - 200);
             else this.spawnAt(0, 500);
@@ -586,7 +551,7 @@ class Player {
             ctx.translate(-(screenX + targetDrawW / 2), 0);
         }
 
-        // Vertical adjustment
+        // Vertical adjustment to keep feet on ground when transitioning heights
         const yOffset = (this.state === 'run' || this.state === 'land') ? 
                         CONFIG.PLAYER_CROUCH_HEIGHT - targetDrawH : 
                         CONFIG.PLAYER_BASE_HEIGHT - targetDrawH;
@@ -619,7 +584,6 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
         this.canvas.width = CONFIG.INTERNAL_WIDTH;
         this.canvas.height = CONFIG.INTERNAL_HEIGHT;
-        
         this.player = new Player();
         this.currentLevelIndex = 0;
         this.bricks = [];
@@ -628,7 +592,6 @@ class Game {
         this.exit = { x: 0, y: 0, w: 120, h: 220 };
         this.cameraX = 0;
         this.isPaused = false;
-
         this.handleResize();
         window.addEventListener('resize', () => this.handleResize());
         this.start();
@@ -655,22 +618,17 @@ class Game {
             img.src = src;
         }));
         const results = await Promise.all(loads);
-        results.forEach(res => {
-            if (res.img) this.backgrounds[res.src] = res.img;
-        });
+        results.forEach(res => { if (res.img) this.backgrounds[res.src] = res.img; });
     }
 
     initLevel() {
         const levelData = LEVELS[this.currentLevelIndex];
         document.getElementById('level-name').innerText = `LEVEL ${levelData.id}: ${levelData.name.toUpperCase()}`;
         document.getElementById('objective-text').innerText = levelData.hint;
-        
         this.generateLevel();
         this.player.reset();
-        
         const firstBrick = this.bricks[0];
         this.player.spawnAt(firstBrick.x + 100, firstBrick.y);
-        
         this.cameraX = 0;
         this.isPaused = false;
         document.getElementById('message-overlay').style.display = 'none';
@@ -690,40 +648,23 @@ class Game {
         this.bricks = [];
         this.items = [];
         this.createPlatform(0, 800, 900, 400);
-        
-        let lastX = 800;
-        let lastY = 800;
-        let keysPlaced = 0;
-        let wingsPlaced = false;
-
+        let lastX = 800, lastY = 800, keysPlaced = 0, wingsPlaced = false;
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
-            let gap = 180 + Math.random() * 120;
-            let width = 420 + Math.random() * 420;
+            let gap = 180 + Math.random() * 120, width = 420 + Math.random() * 420;
             let diff = (Math.random() - 0.5) * 350;
             let mainY = Math.max(250, Math.min(850, lastY + diff));
             if (mainY < lastY - CONFIG.MAX_JUMP_REACH) mainY = lastY - CONFIG.MAX_JUMP_REACH;
-
             this.createPlatform(lastX + gap, mainY, width, 60);
-            
-            // Random floating "wall" or challenge
-            if (Math.random() > 0.6) {
-                this.createPlatform(lastX + gap + (width/3), mainY - 300, 60, 300);
-            }
-
+            if (Math.random() > 0.6) this.createPlatform(lastX + gap + (width/3), mainY - 300, 60, 300);
             if (Math.random() > 0.45) {
                 let altYOffset = CONFIG.MIN_HEAD_CLEARANCE + 60 + (Math.random() * 80);
-                const isBelow = Math.random() > 0.5;
-                let altY = mainY + (isBelow ? altYOffset : -altYOffset);
-                altY = Math.max(120, Math.min(940, altY));
-                
+                let altY = Math.max(120, Math.min(940, mainY + (Math.random() > 0.5 ? altYOffset : -altYOffset)));
                 let altWidth = 320 + Math.random() * 280;
                 this.createPlatform(lastX + gap + 40, altY, altWidth, 60);
-                
                 if (keysPlaced < CONFIG.REQUIRED_KEYS) {
                     this.items.push({ x: lastX + gap + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
                     keysPlaced++;
                 }
-
                 if (!wingsPlaced && i > 3 && Math.random() > 0.65) {
                     this.items.push({ x: lastX + gap + 150, y: altY - 100, type: 'wings', collected: false });
                     wingsPlaced = true;
@@ -734,35 +675,27 @@ class Game {
                     keysPlaced++;
                 }
             }
-
-            lastX += gap + width;
-            lastY = mainY;
+            lastX += gap + width; lastY = mainY;
         }
-
         if (!wingsPlaced) {
             let p = this.bricks[Math.floor(this.bricks.length / 2)];
             this.items.push({ x: p.x, y: p.y - 120, type: 'wings', collected: false });
         }
-
         while (keysPlaced < CONFIG.REQUIRED_KEYS) {
             let p = this.bricks[Math.floor(Math.random() * this.bricks.length)];
             this.items.push({ x: p.x, y: p.y - 80, type: 'key', collected: false });
             keysPlaced++;
         }
-
-        this.exit.x = lastX + 150;
-        this.exit.y = lastY - 220;
+        this.exit.x = lastX + 150; this.exit.y = lastY - 220;
         this.createPlatform(lastX, lastY, 900, 400);
     }
 
     update() {
         if (this.isPaused) return;
         this.player.update(this.bricks, this.items);
-        
         let targetCam = this.player.x - (CONFIG.INTERNAL_WIDTH / 3);
         this.cameraX += (targetCam - this.cameraX) * 0.1;
         this.cameraX = Math.max(0, this.cameraX);
-
         if (this.player.x + this.player.width > this.exit.x && 
             this.player.x < this.exit.x + this.exit.w &&
             this.player.y + this.player.height > this.exit.y &&
@@ -801,37 +734,28 @@ class Game {
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.drawBackground();
-
         for (let b of this.bricks) {
-            if (b.x + b.w > this.cameraX && b.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
-                b.draw(this.ctx, this.cameraX);
-            }
+            if (b.x + b.w > this.cameraX && b.x < this.cameraX + CONFIG.INTERNAL_WIDTH) b.draw(this.ctx, this.cameraX);
         }
-
         this.ctx.textAlign = "center";
         for (let item of this.items) {
             if (!item.collected && item.x + 100 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.shadowBlur = 25;
                 this.ctx.shadowColor = item.type === 'key' ? "gold" : "cyan";
                 this.ctx.font = item.type === 'key' ? "55px Arial" : "75px Arial";
-                this.ctx.globalAlpha = 0.75; 
                 const bounce = Math.sin(Date.now() / 300) * 15;
                 this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX, item.y + bounce);
-                this.ctx.globalAlpha = 1.0;
                 this.ctx.shadowBlur = 0;
             }
         }
-
-        const exitReady = this.player.keysCollected >= CONFIG.REQUIRED_KEYS;
-        this.ctx.fillStyle = exitReady ? "rgba(0, 255, 127, 0.3)" : "rgba(255, 0, 0, 0.2)";
+        const ready = this.player.keysCollected >= CONFIG.REQUIRED_KEYS;
+        this.ctx.fillStyle = ready ? "rgba(0, 255, 127, 0.3)" : "rgba(255, 0, 0, 0.2)";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
-        this.ctx.strokeStyle = exitReady ? "#00ff7f" : "var(--danger)";
-        this.ctx.lineWidth = 6;
+        this.ctx.strokeStyle = ready ? "#00ff7f" : "var(--danger)";
         this.ctx.strokeRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
-        this.ctx.fillStyle = exitReady ? "#00ff7f" : "white";
+        this.ctx.fillStyle = ready ? "#00ff7f" : "white";
         this.ctx.font = "bold 24px Courier New";
-        this.ctx.fillText(exitReady ? "OPEN" : "LOCKED", this.exit.x - this.cameraX + this.exit.w/2, this.exit.y + this.exit.h/2);
-
+        this.ctx.fillText(ready ? "OPEN" : "LOCKED", this.exit.x - this.cameraX + this.exit.w/2, this.exit.y + this.exit.h/2);
         this.player.draw(this.ctx, this.cameraX);
     }
 
@@ -844,24 +768,13 @@ class Game {
 
 const keys = {};
 window.addEventListener('keydown', e => {
-    const now = Date.now();
-    const key = e.key.toLowerCase();
-    
-    // Movement handling (Dash/Run logic)
+    const now = Date.now(), key = e.key.toLowerCase();
     if ((key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft') && !keys[key]) {
-        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
-            game.player.isRunning = true;
-        }
-        game.player.lastTapTime = now;
-        game.player.lastTapKey = key;
+        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) game.player.isRunning = true;
+        game.player.lastTapTime = now; game.player.lastTapKey = key;
     }
-    
     keys[key] = true;
-    
-    // Jump: W or ArrowUp
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = true;
-    
-    // Kick: Spacebar (Right Shoulder Button equivalent)
     if (key === ' ' || key === 'r') keys['KickPressed'] = true;
 });
 
