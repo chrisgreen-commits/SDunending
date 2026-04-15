@@ -181,9 +181,8 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Updates:
- * - Refined Run Cycle: Strictly uses only run sprites at 75% height.
- * - Key Visibility: Increased opacity (0.95), added strong golden glow, increased scale.
- * - UI & Wing Visibility: Enhanced contrast and clarity.
+ * - Unified Run Heights: Enforced exact fixed height (CONFIG.PLAYER_RUN_HEIGHT) for all run frames to eliminate jitter.
+ * - Key Visibility: Maintains high opacity (0.95), strong golden glow, and 55px scale.
  */
 
 const CONFIG = {
@@ -200,7 +199,7 @@ const CONFIG = {
     PARALLAX_FACTOR: 0.3,
     PLAYER_BASE_HEIGHT: 165,      
     PLAYER_SCALED_HEIGHT: 206.25, 
-    PLAYER_RUN_HEIGHT: 154.68, // 75% height for run
+    PLAYER_RUN_HEIGHT: 154.68, // Exactly 75% of scaled height
     ANIM_FPS: 10,
     RUN_ANIM_FPS: 15,
     REQUIRED_KEYS: 25,
@@ -455,7 +454,7 @@ class Player {
         } else if (this.state === 'run') {
             const seq = [this.sprites.run1, this.sprites.run2];
             img = seq[this.animFrame % 2] || this.sprites.run1;
-            drawH = CONFIG.PLAYER_RUN_HEIGHT;
+            drawH = CONFIG.PLAYER_RUN_HEIGHT; // Unified height for run state
         } else if (this.state === 'walk') {
             const seq = [this.sprites.idle, this.sprites.walk1, this.sprites.walk2, this.sprites.walk1];
             img = seq[this.animFrame % 4] || this.sprites.idle;
@@ -467,9 +466,12 @@ class Player {
             ctx.translate(-(screenX + this.width / 2), 0);
         }
 
+        // Standardize width based on the defined drawing height and the image's original aspect ratio
         const aspect = img.naturalWidth / img.naturalHeight;
         const drawW = drawH * aspect;
         const xOffset = (this.width - drawW) / 2;
+        
+        // Vertical positioning: Anchor to the "floor" of the player's collision box
         const yOffset = CONFIG.PLAYER_SCALED_HEIGHT - drawH;
         
         ctx.drawImage(img, screenX + xOffset, this.y + yOffset, drawW, drawH);
@@ -691,19 +693,12 @@ class Game {
         this.ctx.textAlign = "center";
         for (let item of this.items) {
             if (!item.collected && item.x + 100 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
-                // Uniformly higher visibility for both items
                 this.ctx.shadowBlur = 25;
                 this.ctx.shadowColor = item.type === 'key' ? "gold" : "cyan";
-                
-                // Slightly larger keys than before (55px vs 45px)
                 this.ctx.font = item.type === 'key' ? "55px Arial" : "75px Arial";
-                
-                // Solid base alpha for both, with subtle breathing effect
                 this.ctx.globalAlpha = 0.95 + Math.sin(Date.now() / 200) * 0.05;
-                
                 const bounce = Math.sin(Date.now() / 300) * 15;
                 this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX, item.y + bounce);
-                
                 this.ctx.globalAlpha = 1.0;
                 this.ctx.shadowBlur = 0;
             }
