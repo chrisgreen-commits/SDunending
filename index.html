@@ -184,7 +184,7 @@
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.01</div>
+        <div id="watermark">AVALON UNENDING v0.02</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -226,11 +226,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.01
+ * Version: 0.02
  */
 
 const CONFIG = {
-    VERSION: "0.01",
+    VERSION: "0.02",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -256,7 +256,7 @@ const CONFIG = {
     PLATFORM_COLOR: '#8d9196',
     PLATFORM_HIGHLIGHT: '#b0b4b9',
     KICK_SCALE: 1.25,
-    LOW_KICK_SCALE: 1.125 // Increased by 150% from 0.75
+    LOW_KICK_SCALE: 1.068
 };
 
 const LEVELS = [
@@ -447,7 +447,6 @@ class Player {
             this.isRunning = false;
         }
 
-        // Coffee 2x multiplier
         const speedMult = this.hasCoffee ? 2.0 : 1.0;
         const accel = (this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED) * speedMult;
         const max = (this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED) * speedMult;
@@ -561,7 +560,7 @@ class Player {
 
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.extraJumps > 0)) {
-                const jumpMult = this.hasCoffee ? 1.2 : 1.0; // Bonus height for coffee
+                const jumpMult = this.hasCoffee ? 1.2 : 1.0; 
                 this.vy = this.grounded ? -CONFIG.JUMP_FORCE * jumpMult : -CONFIG.JUMP_FORCE * 0.95 * jumpMult;
                 if (!this.grounded) this.extraJumps--;
                 this.grounded = false;
@@ -602,31 +601,34 @@ class Player {
             }
         } else if (this.state === 'walk') {
             if (this.animTimer++ >= 8 / animSpeedMult) { 
-                this.animFrame = (this.animFrame + 1) % 2; // Only 2 frames now
+                this.animFrame = (this.animFrame + 1) % 2; 
                 this.animTimer = 0;
             }
         }
 
         for (let item of items) {
-            if (!item.collected && 
-                this.x < item.x + 50 && this.x + this.width > item.x &&
-                this.y < item.y + 60 && this.y + physH > item.y) {
-                item.collected = true;
-                if (item.type === 'key') this.keysCollected++;
-                else if (item.type === 'wings') {
-                    this.hasWings = true;
-                    this.extraJumps = 2;
-                    this.game.addParticle(this.x, this.y, "Aerial Ascension!", "gold");
-                } else if (item.type === 'coffee') {
-                    this.hasCoffee = true;
-                    this.game.addParticle(this.x, this.y, "Caffeine Rush!", "#ff8c00");
+            if (!item.collected) {
+                const itemPhysPad = 15;
+                if (this.x + physPad < item.x + 50 - itemPhysPad && this.x + this.width - physPad > item.x + itemPhysPad &&
+                    this.y < item.y + 60 && this.y + physH > item.y) {
+                    item.collected = true;
+                    if (item.type === 'key') this.keysCollected++;
+                    else if (item.type === 'wings') {
+                        this.hasWings = true;
+                        this.extraJumps = 2;
+                        this.game.addParticle(this.x, this.y, "Aerial Ascension!", "gold");
+                    } else if (item.type === 'coffee') {
+                        this.hasCoffee = true;
+                        this.game.addParticle(this.x, this.y, "Caffeine Rush!", "#ff8c00");
+                    }
+                    this.updateUI();
                 }
-                this.updateUI();
             }
         }
 
         if (this.y > CONFIG.INTERNAL_HEIGHT + 1000) {
-            let respawn = bricks.find(b => !b.destroyed);
+            // FIX: Reference game.bricks instead of this.bricks (which is undefined on Player)
+            let respawn = this.game.bricks.find(b => !b.destroyed);
             if (respawn) this.spawnAt(respawn.x, respawn.y - 200);
             else this.spawnAt(0, 500);
         }
@@ -650,7 +652,6 @@ class Player {
                 targetDrawH = CONFIG.PLAYER_RUN_HEIGHT;
                 break;
             case 'walk':
-                // JUST Walk1 and Walk2 cycle
                 img = this.animFrame === 0 ? this.sprites.walk1 : this.sprites.walk2;
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
                 break;
@@ -682,7 +683,6 @@ class Player {
         let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
         let screenX = this.x - cameraX;
         
-        // Handle kick "forward extension" logic
         if (this.state === 'kick' || this.state === 'kickLow') {
             if (this.direction === -1) {
                 screenX -= (finalDrawW - idleW);
@@ -693,7 +693,6 @@ class Player {
         const shoulderY = (this.y + CONFIG.PLAYER_PHYS_HEIGHT) - (finalDrawH * 0.75);
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
-        // Wings Back
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -710,7 +709,6 @@ class Player {
             ctx.restore();
         }
 
-        // Draw Player
         ctx.save();
         if (this.direction === -1) {
             ctx.translate(screenX + (finalDrawW / 2), 0);
@@ -720,7 +718,6 @@ class Player {
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
         ctx.restore();
 
-        // Wings Front
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -816,9 +813,14 @@ class Game {
             let diff = (Math.random() - 0.5) * 350;
             let mainY = Math.max(250, Math.min(850, lastY + diff));
             if (mainY < lastY - CONFIG.MAX_JUMP_REACH) mainY = lastY - CONFIG.MAX_JUMP_REACH;
+            
             this.createPlatform(lastX + gap, mainY, width, 60);
 
-            // Item placement
+            if (Math.random() > 0.6) {
+                const wallHeight = 180 + Math.random() * 240;
+                this.createPlatform(lastX + gap, mainY - wallHeight, 60, wallHeight);
+            }
+
             if (Math.random() > 0.45) {
                 let altYOffset = CONFIG.MIN_HEAD_CLEARANCE + 60 + (Math.random() * 80);
                 let altY = Math.max(120, Math.min(940, mainY + (Math.random() > 0.5 ? altYOffset : -altYOffset)));
@@ -841,7 +843,6 @@ class Game {
             lastX += gap + width; lastY = mainY;
         }
 
-        // Ensure powerups exist
         if (!wingsPlaced) this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
         if (!coffeePlaced) this.items.push({ x: lastX - 1000, y: 400, type: 'coffee', collected: false });
 
