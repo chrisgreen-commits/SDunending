@@ -100,6 +100,18 @@
             border: 2px solid var(--ui-gold);
         }
 
+        /* Watermark Styles */
+        #watermark {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.3);
+            letter-spacing: 1px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
         #message-overlay {
             position: absolute;
             top: 0;
@@ -168,6 +180,9 @@
                 <div style="font-size: 0.9rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Triple Jump Online</div>
             </div>
         </div>
+
+        <!-- Debug Watermark -->
+        <div id="watermark">v0.00</div>
     </div>
 
     <div id="message-overlay">
@@ -182,10 +197,12 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Fix: Added Low Kick mechanic (Down + Kick) targeting floor-level bricks.
+ * Version: 0.00
+ * Feature: Added version watermark for deployment tracking.
  */
 
 const CONFIG = {
+    VERSION: "0.00",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -417,12 +434,10 @@ class Player {
     performKick(bricks, isLow = false) {
         if (this.attackTimer > 0) return;
         
-        // Low kick target is the brick immediately above floor level (range of the bottom half of the sprite)
-        // High kick target is mid-body range
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
         const ky = isLow ? 
-                  (this.y + CONFIG.PLAYER_PHYS_HEIGHT - 30) : // Targeted lower towards feet
-                  (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);   // Mid-body height
+                  (this.y + CONFIG.PLAYER_PHYS_HEIGHT - 30) : 
+                  (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);   
         
         for (let b of bricks) {
             if (!b.destroyed && kx > b.x && kx < b.x + b.w && ky > b.y && ky < b.y + b.h) {
@@ -457,7 +472,6 @@ class Player {
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
         const physPad = Math.max(0, (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2);
 
-        // Logic check: if holding down AND kicking while on ground, it's a LOW kick
         if (isKicking) {
             if (isHoldingDown && this.grounded) {
                 this.performKick(bricks, true);
@@ -634,11 +648,9 @@ class Player {
 
         let yDrawOffset = CONFIG.PLAYER_PHYS_HEIGHT - finalDrawH;
         
-        // Wing positioning logic remains based on 75% height
         const shoulderY = (this.y + CONFIG.PLAYER_PHYS_HEIGHT) - (finalDrawH * 0.75);
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
-        // 1. Draw "Front" Wing (behind)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -655,7 +667,6 @@ class Player {
             ctx.restore();
         }
 
-        // Character Draw
         ctx.save();
         if (this.direction === -1) {
             ctx.translate(screenX + (finalDrawW / 2), 0);
@@ -665,7 +676,6 @@ class Player {
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
         ctx.restore();
 
-        // 2. Draw "Back" Wing (front)
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
