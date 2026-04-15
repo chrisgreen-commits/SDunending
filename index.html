@@ -100,16 +100,18 @@
             border: 2px solid var(--ui-gold);
         }
 
-        /* Watermark Styles */
+        /* Watermark Styles - Subtle but clearly visible */
         #watermark {
             position: absolute;
             bottom: 20px;
             right: 30px;
-            font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.3);
-            letter-spacing: 1px;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.25);
+            font-family: monospace;
+            letter-spacing: 2px;
             pointer-events: none;
             z-index: 10;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
 
         #message-overlay {
@@ -182,7 +184,7 @@
         </div>
 
         <!-- Debug Watermark -->
-        <div id="watermark">v0.00</div>
+        <div id="watermark">v0.01</div>
     </div>
 
     <div id="message-overlay">
@@ -197,12 +199,12 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.00
- * Feature: Added version watermark for deployment tracking.
+ * Version: 0.01
+ * Feature: Remapped Low Kick to 'F' and Gamepad R2. Updated watermark.
  */
 
 const CONFIG = {
-    VERSION: "0.00",
+    VERSION: "0.01",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -397,20 +399,35 @@ class Player {
     }
 
     handleInput() {
+        // Keyboard mapping
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
+
+        // Gamepad mapping
+        const gp = navigator.getGamepads()[0];
+        let gpLeft = false, gpRight = false;
+        if (gp) {
+            if (gp.axes[0] < -0.3) gpLeft = true;
+            if (gp.axes[0] > 0.3) gpRight = true;
+            if (gp.buttons[14].pressed) gpLeft = true;
+            if (gp.buttons[15].pressed) gpRight = true;
+            
+            if (gp.buttons[0].pressed) keys['JumpPressed'] = true; // A/Cross
+            if (gp.buttons[2].pressed) keys['KickPressed'] = true; // X/Square
+            if (gp.buttons[7].pressed) keys['LowKickPressed'] = true; // R2/RT
+        }
         
-        if (!inputLeft && !inputRight) {
+        if (!inputLeft && !inputRight && !gpLeft && !gpRight) {
             this.isRunning = false;
         }
 
         const accel = this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED;
         const max = this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED;
 
-        if (inputRight) {
+        if (inputRight || gpRight) {
             this.vx += accel;
             this.direction = 1;
-        } else if (inputLeft) {
+        } else if (inputLeft || gpLeft) {
             this.vx -= accel;
             this.direction = -1;
         }
@@ -461,8 +478,9 @@ class Player {
         
         let foundGround = false;
         const isHoldingDown = (keys['ArrowDown'] || keys['s']);
-        const isPunching = isHoldingDown && this.grounded;
+        const isPunching = isHoldingDown && this.grounded && !keys['LowKickPressed'];
         const isKicking = keys['KickPressed'];
+        const isLowKick = keys['LowKickPressed'];
 
         const horizontalSpeed = Math.abs(this.vx);
         if (horizontalSpeed < 1.0) {
@@ -472,7 +490,11 @@ class Player {
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
         const physPad = Math.max(0, (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2);
 
-        if (isKicking) {
+        // Logic check: Low kick (F / R2) takes priority for "low" attacks over punches
+        if (isLowKick) {
+            this.performKick(bricks, true);
+            this.state = 'kickLow';
+        } else if (isKicking) {
             if (isHoldingDown && this.grounded) {
                 this.performKick(bricks, true);
                 this.state = 'kickLow';
@@ -531,7 +553,7 @@ class Player {
         let newState = 'idle';
         if (!this.grounded) {
             if (this.airFrames > 3) {
-                newState = isKicking ? 'kick' : 'jump';
+                newState = (isKicking || isLowKick) ? 'kick' : 'jump';
             } else {
                 if (horizontalSpeed > 1.5) newState = this.isRunning ? 'run' : 'walk';
                 else if (horizontalSpeed > 0.8) newState = 'walk';
@@ -544,6 +566,8 @@ class Player {
             } else if (!wasGrounded && wasGenuinelyAirborne) {
                 newState = 'land';
                 this.landTimer = 6;
+            } else if (isLowKick) {
+                newState = 'kickLow';
             } else if (isKicking) {
                 newState = (isHoldingDown && this.grounded) ? 'kickLow' : 'kick';
             } else if (isPunching) {
@@ -895,12 +919,14 @@ window.addEventListener('keydown', e => {
     keys[key] = true;
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = true;
     if (key === ' ' || key === 'r') keys['KickPressed'] = true;
+    if (key === 'f') keys['LowKickPressed'] = true;
 });
 window.addEventListener('keyup', e => {
     const key = e.key.toLowerCase();
     keys[key] = false;
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = false;
     if (key === ' ' || key === 'r') keys['KickPressed'] = false;
+    if (key === 'f') keys['LowKickPressed'] = false;
 });
 let game;
 window.onload = () => { game = new Game(); };
