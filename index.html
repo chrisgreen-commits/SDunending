@@ -32,7 +32,6 @@
             background: #000;
             box-shadow: 0 0 100px rgba(0,0,0,1);
             overflow: hidden;
-            /* Scale down for smaller screens while keeping 1080p internal resolution */
             transform-origin: center;
         }
         canvas {
@@ -188,7 +187,7 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * 1080p Professional Version
+ * 1080p Professional Version with Background Parallax
  */
 
 const CONFIG = {
@@ -200,20 +199,21 @@ const CONFIG = {
     INTERNAL_WIDTH: 1920,
     INTERNAL_HEIGHT: 1080,
     LEVEL_LENGTH: 25,
-    UI_SIDEBAR_WIDTH: 120
+    UI_SIDEBAR_WIDTH: 120,
+    PARALLAX_FACTOR: 0.5 // Background moves at half speed
 };
 
 const LEVELS = [
-    { id: 1, name: "The Dungeon", color: "#0c0d14", accent: "#1e2135", hint: "Search for a way up." },
-    { id: 2, name: "Servant Tunnels", color: "#1a1410", accent: "#2d241d", hint: "Navigate the mess of the kitchens." },
-    { id: 3, name: "The Grand Ballroom", color: "#180f1b", accent: "#2d1b33", hint: "The finery hides many secrets." },
-    { id: 4, name: "The Armory", color: "#1a1a1a", accent: "#2b2b2b", hint: "Excalibur must be here." },
-    { id: 5, name: "Avalon Roof", color: "#0d1421", accent: "#16233a", hint: "To the helicopter!", combat: true }
+    { id: 1, name: "The Dungeon", color: "#0c0d14", accent: "#1e2135", hint: "Search for a way up.", bg: 'Level1Dungeon.png' },
+    { id: 2, name: "Servant Tunnels", color: "#1a1410", accent: "#2d241d", hint: "Navigate the mess of the kitchens.", bg: 'Level1Dungeon.png' },
+    { id: 3, name: "The Grand Ballroom", color: "#180f1b", accent: "#2d1b33", hint: "The finery hides many secrets.", bg: 'Level1Dungeon.png' },
+    { id: 4, name: "The Armory", color: "#1a1a1a", accent: "#2b2b2b", hint: "Excalibur must be here.", bg: 'Level1Dungeon.png' },
+    { id: 5, name: "Avalon Roof", color: "#0d1421", accent: "#16233a", hint: "To the helicopter!", combat: true, bg: 'Level1Dungeon.png' }
 ];
 
 class Player {
     constructor() {
-        this.baseHeight = 110; // Scaled up for 1080p
+        this.baseHeight = 110; 
         this.width = 72;      
         this.height = this.baseHeight;
         this.reset();
@@ -399,6 +399,7 @@ class Game {
         this.currentLevelIndex = 0;
         this.platforms = [];
         this.items = [];
+        this.backgrounds = {};
         this.exit = { x: 0, y: 0, w: 100, h: 160 };
         this.cameraX = 0;
         this.isPaused = false;
@@ -414,9 +415,24 @@ class Game {
     }
 
     async start() {
+        await this.loadBackgrounds();
         await this.player.loadAssets();
         this.initLevel();
         this.loop();
+    }
+
+    async loadBackgrounds() {
+        const bgSources = [...new Set(LEVELS.map(l => l.bg))];
+        const loads = bgSources.map(src => new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => resolve({src, img});
+            img.onerror = () => resolve({src, img: null});
+            img.src = src;
+        }));
+        const results = await Promise.all(loads);
+        results.forEach(res => {
+            if (res.img) this.backgrounds[res.src] = res.img;
+        });
     }
 
     initLevel() {
@@ -434,7 +450,6 @@ class Game {
     generateLevel() {
         this.platforms = [];
         this.items = [];
-        // Starter platform
         this.platforms.push({ x: 0, y: 800, w: 800, h: 400 });
         let lastX = 700;
         let lastY = 800;
@@ -498,16 +513,37 @@ class Game {
         overlay.style.display = 'flex';
     }
 
+    drawBackground() {
+        const level = LEVELS[this.currentLevelIndex];
+        const bgImg = this.backgrounds[level.bg];
+        
+        if (bgImg) {
+            // Scale image to fit screen height
+            const bgScale = CONFIG.INTERNAL_HEIGHT / bgImg.naturalHeight;
+            const bgWidth = bgImg.naturalWidth * bgScale;
+            
+            // Calculate parallax offset
+            const parallaxX = -(this.cameraX * CONFIG.PARALLAX_FACTOR) % bgWidth;
+            
+            // Draw tiles to cover screen
+            for (let x = parallaxX - bgWidth; x < CONFIG.INTERNAL_WIDTH; x += bgWidth) {
+                this.ctx.drawImage(bgImg, x, 0, bgWidth, CONFIG.INTERNAL_HEIGHT);
+            }
+        } else {
+            // Fallback gradient
+            let grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+            grad.addColorStop(0, level.color);
+            grad.addColorStop(1, "#050505");
+            this.ctx.fillStyle = grad;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+    }
+
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         const level = LEVELS[this.currentLevelIndex];
         
-        // Background
-        let grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-        grad.addColorStop(0, level.color);
-        grad.addColorStop(1, "#050505");
-        this.ctx.fillStyle = grad;
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.drawBackground();
 
         // Platforms
         for (let p of this.platforms) {
@@ -515,7 +551,7 @@ class Game {
                 this.ctx.fillStyle = level.accent;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, p.h);
                 // Detail line
-                this.ctx.fillStyle = "rgba(255,255,255,0.05)";
+                this.ctx.fillStyle = "rgba(255,255,255,0.1)";
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 4);
             }
         }
@@ -534,10 +570,10 @@ class Game {
         }
 
         // Exit
-        this.ctx.fillStyle = "#000";
+        this.ctx.fillStyle = "rgba(0,0,0,0.8)";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
         this.ctx.strokeStyle = "gold";
-        this.ctx.lineWidth = 3;
+        this.ctx.lineWidth = 4;
         this.ctx.strokeRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
 
         this.player.draw(this.ctx, this.cameraX);
