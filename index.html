@@ -100,18 +100,23 @@
             border: 2px solid var(--ui-gold);
         }
 
-        /* Watermark Styles - Subtle but clearly visible */
         #watermark {
             position: absolute;
-            bottom: 20px;
-            right: 30px;
-            font-size: 0.85rem;
-            color: rgba(255, 255, 255, 0.25);
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1rem;
+            color: rgba(255, 215, 0, 0.6);
             font-family: monospace;
-            letter-spacing: 2px;
+            font-weight: bold;
+            letter-spacing: 4px;
             pointer-events: none;
             z-index: 10;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.4);
+            padding: 5px 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 215, 0, 0.2);
         }
 
         #message-overlay {
@@ -166,6 +171,8 @@
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
+        <div id="watermark">AVALON UNENDING v0.01</div>
+        
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
             <div id="objective-container">
@@ -182,9 +189,6 @@
                 <div style="font-size: 0.9rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Triple Jump Online</div>
             </div>
         </div>
-
-        <!-- Debug Watermark -->
-        <div id="watermark">v0.01</div>
     </div>
 
     <div id="message-overlay">
@@ -200,7 +204,7 @@
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
  * Version: 0.01
- * Feature: Remapped Low Kick to 'F' and Gamepad R2. Updated watermark.
+ * Updates: Kick animations extended forward from body back-edge. Version moved to top-center.
  */
 
 const CONFIG = {
@@ -230,7 +234,7 @@ const CONFIG = {
     PLATFORM_COLOR: '#8d9196',
     PLATFORM_HIGHLIGHT: '#b0b4b9',
     KICK_SCALE: 1.25,
-    LOW_KICK_SCALE: 0.75 // Reduced to 60% of current (1.25 * 0.6 = 0.75)
+    LOW_KICK_SCALE: 0.75 
 };
 
 const LEVELS = [
@@ -307,7 +311,7 @@ class Player {
     constructor(game) {
         this.game = game;
         this.baseHeight = CONFIG.PLAYER_BASE_HEIGHT;
-        this.width = 108;
+        this.width = 108; // Estimated initial
         this.keysCollected = 0;
         this.hasWings = false;
         this.extraJumps = 0;
@@ -358,6 +362,10 @@ class Player {
         }));
         this.sprites = Object.fromEntries(results);
         this.assetsLoaded = true;
+        
+        // Finalize idle width once loaded
+        const idleImg = this.sprites.idle;
+        this.width = (CONFIG.PLAYER_BASE_HEIGHT * (idleImg.naturalWidth / idleImg.naturalHeight));
     }
 
     spawnAt(x, y) {
@@ -400,11 +408,9 @@ class Player {
     }
 
     handleInput() {
-        // Keyboard mapping
         const inputLeft = keys['ArrowLeft'] || keys['a'];
         const inputRight = keys['ArrowRight'] || keys['d'];
 
-        // Gamepad mapping
         const gp = navigator.getGamepads()[0];
         let gpLeft = false, gpRight = false;
         if (gp) {
@@ -413,9 +419,9 @@ class Player {
             if (gp.buttons[14].pressed) gpLeft = true;
             if (gp.buttons[15].pressed) gpRight = true;
             
-            if (gp.buttons[0].pressed) keys['JumpPressed'] = true; // A/Cross
-            if (gp.buttons[2].pressed) keys['KickPressed'] = true; // X/Square
-            if (gp.buttons[7].pressed) keys['LowKickPressed'] = true; // R2/RT
+            if (gp.buttons[0].pressed) keys['JumpPressed'] = true; 
+            if (gp.buttons[2].pressed) keys['KickPressed'] = true; 
+            if (gp.buttons[7].pressed) keys['LowKickPressed'] = true; 
         }
         
         if (!inputLeft && !inputRight && !gpLeft && !gpRight) {
@@ -491,7 +497,6 @@ class Player {
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
         const physPad = Math.max(0, (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2);
 
-        // Logic check: Low kick (F / R2) takes priority for "low" attacks over punches
         if (isLowKick) {
             this.performKick(bricks, true);
             this.state = 'kickLow';
@@ -626,11 +631,14 @@ class Player {
         if (!this.assetsLoaded) return;
         ctx.save();
         
-        let screenX = this.x - cameraX;
         let img = this.sprites.idle;
         let targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
         let scaleFactor = 1.0;
 
+        // Get the width of the idle/body graphic to use as a "stable" anchor
+        const idleImg = this.sprites.idle;
+        const idleW = (CONFIG.PLAYER_BASE_HEIGHT * (idleImg.naturalWidth / idleImg.naturalHeight));
+        
         switch(this.state) {
             case 'run':
                 img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2;
@@ -657,7 +665,7 @@ class Player {
             case 'kickLow':
                 img = this.sprites.kickLow;
                 targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
-                scaleFactor = CONFIG.LOW_KICK_SCALE; // Scaled down to 60% of original current size
+                scaleFactor = CONFIG.LOW_KICK_SCALE;
                 break;
             case 'idle':
             default:
@@ -670,16 +678,31 @@ class Player {
         let finalDrawH = targetDrawH * scaleFactor;
         let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
         
-        // Use non-scaled width for standard logic to prevent hitbox jitter
-        if (this.state !== 'kickLow') {
-            this.width = targetDrawH * aspectRatio;
+        // Calculate stable horizontal positioning
+        // x is the physical anchor point. 
+        // We want the "back" of the character to stay in place relative to this.x
+        let screenX = this.x - cameraX;
+        
+        // If kicking, we adjust the position so the leg extends forward 
+        // while the "back" edge of the sprite aligns with where the back of idle would be.
+        if (this.state === 'kick' || this.state === 'kickLow') {
+            if (this.direction === 1) {
+                // Facing Right: Back edge is screenX. Sprite should draw at screenX.
+                // No adjustment needed if the kick sprite has her back at the left edge of image.
+            } else {
+                // Facing Left: Back edge is screenX + idleW. 
+                // We need the right-edge of the (flipped) kick sprite to align with screenX + idleW.
+                // Drawing at screenX would put the back edge at screenX + finalDrawW.
+                // So we offset by -(finalDrawW - idleW)
+                screenX -= (finalDrawW - idleW);
+            }
         }
 
         let yDrawOffset = CONFIG.PLAYER_PHYS_HEIGHT - finalDrawH;
-        
         const shoulderY = (this.y + CONFIG.PLAYER_PHYS_HEIGHT) - (finalDrawH * 0.75);
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
+        // Wings Back
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
@@ -696,6 +719,7 @@ class Player {
             ctx.restore();
         }
 
+        // Draw Player
         ctx.save();
         if (this.direction === -1) {
             ctx.translate(screenX + (finalDrawW / 2), 0);
@@ -705,6 +729,7 @@ class Player {
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
         ctx.restore();
 
+        // Wings Front
         if (this.hasWings) {
             ctx.save();
             ctx.font = "64px Arial"; 
