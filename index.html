@@ -7,81 +7,107 @@
     <style>
         :root {
             --ui-gold: #ffd700;
-            --ui-bg: rgba(20, 20, 25, 0.9);
+            --ui-bg: rgba(10, 10, 15, 0.95);
             --accent: #a8dadc;
+            --slot-bg: rgba(255, 255, 255, 0.05);
+            --slot-border: #444;
         }
         body, html {
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background: #000;
+            background: #050505;
             font-family: 'Courier New', Courier, monospace;
             color: white;
-        }
-        #game-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: radial-gradient(circle, #1b2735 0%, #090a0f 100%);
+            height: 100vh;
+            width: 100vw;
+        }
+        #game-wrapper {
+            position: relative;
+            width: 1920px;
+            height: 1080px;
+            background: #000;
+            box-shadow: 0 0 100px rgba(0,0,0,1);
+            overflow: hidden;
+            /* Scale down for smaller screens while keeping 1080p internal resolution */
+            transform-origin: center;
         }
         canvas {
             display: block;
             image-rendering: pixelated;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-            border: 4px solid #222;
         }
         #ui-layer {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             pointer-events: none;
-            width: calc(100% - 40px);
         }
-        .hud-box {
+        .hud-top {
+            position: absolute;
+            top: 40px;
+            left: 40px;
             background: var(--ui-bg);
-            border: 2px solid var(--ui-gold);
-            padding: 15px;
-            border-radius: 4px;
-            display: inline-block;
-            min-width: 250px;
+            border-left: 5px solid var(--ui-gold);
+            padding: 20px 30px;
+            backdrop-filter: blur(10px);
         }
         #level-name {
-            font-size: 1.2rem;
+            font-size: 2rem;
             font-weight: bold;
             color: var(--ui-gold);
             margin-bottom: 5px;
+            letter-spacing: 2px;
         }
         #objective {
-            font-size: 0.9rem;
-            color: #ccc;
+            font-size: 1.1rem;
+            color: #aaa;
+            text-transform: uppercase;
         }
-        #inventory {
+        #inventory-sidebar {
             position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 15px;
+            right: 0;
+            top: 0;
+            width: 120px;
+            height: 100%;
             background: var(--ui-bg);
-            padding: 15px;
-            border: 2px solid #444;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-left: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 40px;
+            gap: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .inv-label {
+            font-size: 0.7rem;
+            color: var(--ui-gold);
+            margin-bottom: 10px;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            opacity: 0.7;
         }
         .inv-slot {
-            width: 60px;
-            height: 60px;
-            border: 2px solid #555;
-            background: rgba(0,0,0,0.6);
+            width: 70px;
+            height: 70px;
+            border: 2px solid var(--slot-border);
+            background: var(--slot-bg);
             display: flex;
             justify-content: center;
             align-items: center;
-            position: relative;
+            transition: all 0.2s ease;
         }
-        .inv-slot.active { border-color: var(--ui-gold); }
+        .inv-slot.active {
+            border-color: var(--ui-gold);
+            background: rgba(255, 215, 0, 0.1);
+            box-shadow: inset 0 0 10px rgba(255, 215, 0, 0.2);
+        }
 
         #message-overlay {
             position: absolute;
@@ -89,52 +115,72 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.85);
+            background: rgba(0,0,0,0.92);
             display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             text-align: center;
             z-index: 100;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(15px);
+        }
+        #message-content h1 {
+            font-size: 3.5rem;
+            color: var(--ui-gold);
+            margin-bottom: 20px;
+        }
+        #message-content p {
+            font-size: 1.5rem;
+            color: #ccc;
         }
         .btn {
             background: var(--ui-gold);
             color: black;
             border: none;
-            padding: 15px 40px;
+            padding: 20px 60px;
             font-weight: bold;
-            font-size: 1.1rem;
+            font-size: 1.4rem;
             cursor: pointer;
-            margin-top: 30px;
+            margin-top: 50px;
             text-transform: uppercase;
+            transition: transform 0.1s;
+            pointer-events: auto;
         }
+        .btn:hover { transform: scale(1.05); }
+        .btn:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
 
-<div id="game-container">
+<div id="game-wrapper">
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
-        <div class="hud-box">
-            <div id="level-name">LOADING...</div>
+        <div class="hud-top">
+            <div id="level-name">INITIALIZING...</div>
             <div id="objective">Waiting for Avalon to awaken.</div>
         </div>
-    </div>
 
-    <div id="inventory">
-        <div class="inv-slot" id="slot-0"></div>
-        <div class="inv-slot" id="slot-1"></div>
-        <div class="inv-slot" id="slot-2"></div>
-        <div class="inv-slot" id="slot-3"></div>
+        <div id="inventory-sidebar">
+            <div class="inv-label">Storage Array</div>
+            <div class="inv-slot" id="slot-0"></div>
+            <div class="inv-slot" id="slot-1"></div>
+            <div class="inv-slot" id="slot-2"></div>
+            <div class="inv-slot" id="slot-3"></div>
+            <div class="inv-slot" id="slot-4"></div>
+            <div class="inv-slot" id="slot-5"></div>
+            <div class="inv-slot" id="slot-6"></div>
+            <div class="inv-slot" id="slot-7"></div>
+            <div class="inv-slot" id="slot-8"></div>
+            <div class="inv-slot" id="slot-9"></div>
+        </div>
     </div>
 
     <div id="message-overlay">
         <div id="message-content">
-            <h1 id="overlay-title">EXCALIBUR IS IN ANOTHER PART OF THE CASTLE.</h1>
+            <h1 id="overlay-title">EXCALIBUR DETECTED</h1>
             <p id="overlay-text">The search continues...</p>
-            <button class="btn" onclick="game.nextLevel()">CONTINUE SEARCH</button>
+            <button class="btn" onclick="game.nextLevel()">ADVANCE TO NEXT SECTOR</button>
         </div>
     </div>
 </div>
@@ -142,31 +188,34 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
+ * 1080p Professional Version
  */
 
 const CONFIG = {
     GRAVITY: 0.45,
     FRICTION: 0.82,
-    PLAYER_SPEED: 0.7,
-    MAX_SPEED: 5,
-    JUMP_FORCE: 11,
-    VIEWPORT_WIDTH: 1000,
-    VIEWPORT_HEIGHT: 600,
-    LEVEL_LENGTH: 20
+    PLAYER_SPEED: 0.8,
+    MAX_SPEED: 7,
+    JUMP_FORCE: 14,
+    INTERNAL_WIDTH: 1920,
+    INTERNAL_HEIGHT: 1080,
+    LEVEL_LENGTH: 25,
+    UI_SIDEBAR_WIDTH: 120
 };
 
 const LEVELS = [
-    { id: 1, name: "The Dungeon", color: "#1a1c2c", accent: "#333", hint: "Search for a way up." },
-    { id: 2, name: "Servant Tunnels", color: "#2a2118", accent: "#4a3b2b", hint: "Navigate the mess of the kitchens." },
-    { id: 3, name: "The Grand Ballroom", color: "#2d1b33", accent: "#4d2b59", hint: "The finery hides many secrets." },
-    { id: 4, name: "The Armory", color: "#2e2e2e", accent: "#444", hint: "Excalibur must be here." },
-    { id: 5, name: "Avalon Roof", color: "#1a2a44", accent: "#2a3a5a", hint: "To the helicopter!", combat: true }
+    { id: 1, name: "The Dungeon", color: "#0c0d14", accent: "#1e2135", hint: "Search for a way up." },
+    { id: 2, name: "Servant Tunnels", color: "#1a1410", accent: "#2d241d", hint: "Navigate the mess of the kitchens." },
+    { id: 3, name: "The Grand Ballroom", color: "#180f1b", accent: "#2d1b33", hint: "The finery hides many secrets." },
+    { id: 4, name: "The Armory", color: "#1a1a1a", accent: "#2b2b2b", hint: "Excalibur must be here." },
+    { id: 5, name: "Avalon Roof", color: "#0d1421", accent: "#16233a", hint: "To the helicopter!", combat: true }
 ];
 
 class Player {
     constructor() {
-        this.width = 48; 
-        this.height = 72;
+        this.baseHeight = 110; // Scaled up for 1080p
+        this.width = 72;      
+        this.height = this.baseHeight;
         this.reset();
         this.inventory = [];
         this.assetsLoaded = false;
@@ -178,7 +227,7 @@ class Player {
     async loadAssets() {
         const sources = {
             idle: 'WinterIdle.png',
-            walk: 'WinterWalk.png', // Reverted to generic name for your GitHub structure
+            walk: 'WinterWalk1.png', 
             jump: 'WinterJumpS.png',
             land: 'WinterLandS.png'
         };
@@ -187,7 +236,6 @@ class Player {
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = () => {
-                // If it fails, create a colored canvas as a fallback so we don't just see a blue box forever
                 const canvas = document.createElement('canvas');
                 canvas.width = 48; canvas.height = 72;
                 const ctx = canvas.getContext('2d');
@@ -204,12 +252,17 @@ class Player {
         }));
 
         this.sprites = Object.fromEntries(results);
+        
+        if (this.sprites.idle && this.sprites.idle.naturalHeight) {
+            const aspectRatio = this.sprites.idle.naturalWidth / this.sprites.idle.naturalHeight;
+            this.width = this.height * aspectRatio;
+        }
         this.assetsLoaded = true;
     }
 
     reset() {
-        this.x = 100;
-        this.y = 300;
+        this.x = 200;
+        this.y = 400;
         this.vx = 0;
         this.vy = 0;
         this.grounded = false;
@@ -239,8 +292,9 @@ class Player {
         this.y += this.vy;
         this.grounded = false;
 
+        const hitboxPadding = this.width * 0.25;
         for (let p of platforms) {
-            if (this.x + 10 < p.x + p.w && this.x + this.width - 10 > p.x &&
+            if (this.x + hitboxPadding < p.x + p.w && this.x + this.width - hitboxPadding > p.x &&
                 this.y < p.y + p.h && this.y + this.height > p.y) {
                 if (this.vy > 0 && this.y + this.height - this.vy <= p.y) {
                     this.y = p.y - this.height;
@@ -249,11 +303,11 @@ class Player {
                 } else if (this.vy < 0 && this.y - this.vy >= p.y + p.h) {
                     this.y = p.y + p.h;
                     this.vy = 0;
-                } else if (this.vx > 0 && this.x + this.width - 10 <= p.x + 10) {
-                    this.x = p.x - this.width + 10;
+                } else if (this.vx > 0 && this.x + this.width - hitboxPadding <= p.x + 20) {
+                    this.x = p.x - this.width + hitboxPadding;
                     this.vx = 0;
-                } else if (this.vx < 0 && this.x + 10 >= p.x + p.w - 10) {
-                    this.x = p.x + p.w - 10;
+                } else if (this.vx < 0 && this.x + hitboxPadding >= p.x + p.w - 20) {
+                    this.x = p.x + p.w - hitboxPadding;
                     this.vx = 0;
                 }
             }
@@ -269,7 +323,7 @@ class Player {
             if (!wasGrounded) {
                 this.state = 'land';
             } else {
-                if (isMoving) {
+                if (Math.abs(this.vx) > 0.1) {
                     this.state = 'walk';
                     this.animTimer++;
                 } else {
@@ -282,37 +336,33 @@ class Player {
 
         for (let item of items) {
             if (!item.collected && 
-                this.x < item.x + 30 && this.x + this.width > item.x &&
-                this.y < item.y + 30 && this.y + this.height > item.y) {
+                this.x < item.x + 40 && this.x + this.width > item.x &&
+                this.y < item.y + 40 && this.y + this.height > item.y) {
                 item.collected = true;
                 this.addToInventory(item);
             }
         }
 
-        if (this.y > CONFIG.VIEWPORT_HEIGHT + 200) this.reset();
+        if (this.y > CONFIG.INTERNAL_HEIGHT + 400) this.reset();
     }
 
     addToInventory(item) {
-        if (this.inventory.length < 4) {
+        if (this.inventory.length < 10) {
             this.inventory.push(item);
             const slot = document.getElementById(`slot-${this.inventory.length - 1}`);
-            slot.innerHTML = `<span style="color: gold; font-size: 20px;">★</span>`; 
+            slot.innerHTML = `<span style="color: gold; font-size: 30px;">★</span>`; 
             slot.classList.add('active');
         }
     }
 
     draw(ctx, cameraX) {
         ctx.save();
-        let drawX = this.x - cameraX;
+        let screenX = this.x - cameraX;
         
-        // Flip context if facing left
         if (this.direction === -1) {
-            ctx.translate(drawX + this.width, 0);
+            ctx.translate(screenX + this.width / 2, 0);
             ctx.scale(-1, 1);
-            drawX = 0;
-        } else {
-            ctx.translate(drawX, 0);
-            drawX = 0;
+            ctx.translate(-(screenX + this.width / 2), 0);
         }
 
         if (this.assetsLoaded) {
@@ -324,12 +374,14 @@ class Player {
                 case 'land': img = this.sprites.land; break;
                 case 'walk': 
                     img = this.sprites.walk; 
-                    bounce = Math.sin(this.animTimer * 0.2) * 3;
+                    bounce = Math.sin(this.animTimer * 0.2) * 5;
                     break;
                 default: img = this.sprites.idle;
             }
 
-            ctx.drawImage(img, drawX, this.y + bounce, this.width, this.height);
+            const drawW = img.naturalWidth ? (this.height * (img.naturalWidth / img.naturalHeight)) : this.width;
+            const xOffset = (this.width - drawW) / 2;
+            ctx.drawImage(img, screenX + xOffset, this.y + bounce, drawW, this.height);
         }
         ctx.restore();
     }
@@ -337,20 +389,28 @@ class Player {
 
 class Game {
     constructor() {
+        this.wrapper = document.getElementById('game-wrapper');
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.canvas.width = CONFIG.VIEWPORT_WIDTH;
-        this.canvas.height = CONFIG.VIEWPORT_HEIGHT;
+        this.canvas.width = CONFIG.INTERNAL_WIDTH;
+        this.canvas.height = CONFIG.INTERNAL_HEIGHT;
         
         this.player = new Player();
         this.currentLevelIndex = 0;
         this.platforms = [];
         this.items = [];
-        this.exit = { x: 0, y: 0, w: 70, h: 100 };
+        this.exit = { x: 0, y: 0, w: 100, h: 160 };
         this.cameraX = 0;
         this.isPaused = false;
 
+        this.handleResize();
+        window.addEventListener('resize', () => this.handleResize());
         this.start();
+    }
+
+    handleResize() {
+        const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+        this.wrapper.style.transform = `scale(${scale})`;
     }
 
     async start() {
@@ -361,8 +421,8 @@ class Game {
 
     initLevel() {
         const levelData = LEVELS[this.currentLevelIndex];
-        document.getElementById('level-name').innerText = `LEVEL ${levelData.id}: ${levelData.name.toUpperCase()}`;
-        document.getElementById('objective').innerText = `Objective: ${levelData.hint}`;
+        document.getElementById('level-name').innerText = `SECTOR ${levelData.id}: ${levelData.name.toUpperCase()}`;
+        document.getElementById('objective').innerText = `CMD: ${levelData.hint}`;
         
         this.generateLevel();
         this.player.reset();
@@ -374,43 +434,42 @@ class Game {
     generateLevel() {
         this.platforms = [];
         this.items = [];
-        this.platforms.push({ x: 0, y: 500, w: 500, h: 200 });
-        let lastX = 400;
-        let lastY = 500;
+        // Starter platform
+        this.platforms.push({ x: 0, y: 800, w: 800, h: 400 });
+        let lastX = 700;
+        let lastY = 800;
 
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
-            let gap = 110 + Math.random() * 70;
-            let width = 200 + Math.random() * 250;
-            let heightChange = (Math.random() - 0.5) * 160;
+            let gap = 150 + Math.random() * 120;
+            let width = 300 + Math.random() * 400;
+            let heightChange = (Math.random() - 0.5) * 250;
             let nextX = lastX + gap;
-            let nextY = Math.max(200, Math.min(520, lastY + heightChange));
-            this.platforms.push({ x: nextX, y: nextY, w: width, h: 40 });
-            if (Math.random() > 0.6) {
-                this.items.push({ x: nextX + width/2 - 15, y: nextY - 40, collected: false });
+            let nextY = Math.max(300, Math.min(900, lastY + heightChange));
+            this.platforms.push({ x: nextX, y: nextY, w: width, h: 60 });
+            
+            if (Math.random() > 0.4) {
+                this.items.push({ x: nextX + width/2 - 20, y: nextY - 60, collected: false });
             }
             lastX = nextX + width;
             lastY = nextY;
         }
 
-        this.exit.x = lastX - 120;
-        this.exit.y = lastY - 100;
-        this.platforms.push({ x: lastX - 200, y: lastY, w: 400, h: 200 });
+        this.exit.x = lastX - 200;
+        this.exit.y = lastY - 160;
+        this.platforms.push({ x: lastX - 400, y: lastY, w: 800, h: 400 });
     }
 
     nextLevel() {
         this.currentLevelIndex++;
-        if (this.currentLevelIndex < LEVELS.length) {
-            this.initLevel();
-        } else {
-            this.currentLevelIndex = 0;
-            this.initLevel();
-        }
+        if (this.currentLevelIndex >= LEVELS.length) this.currentLevelIndex = 0;
+        this.initLevel();
     }
 
     update() {
         if (this.isPaused) return;
         this.player.update(this.platforms, this.items);
-        let targetCam = this.player.x - CONFIG.VIEWPORT_WIDTH / 3;
+        
+        let targetCam = this.player.x - (CONFIG.INTERNAL_WIDTH - CONFIG.UI_SIDEBAR_WIDTH) / 3;
         this.cameraX += (targetCam - this.cameraX) * 0.08;
         this.cameraX = Math.max(0, this.cameraX);
 
@@ -429,12 +488,12 @@ class Game {
         const text = document.getElementById('overlay-text');
 
         if (this.currentLevelIndex === 3) {
-            title.innerText = "YOU FOUND EXCALIBUR!";
-            text.innerText = "The power of Avalon surges through you. Get to the roof extraction point.";
+            title.innerText = "EXCALIBUR ACQUIRED";
+            text.innerText = "The power of Avalon is yours. Proceed to the roof for extraction.";
         } else {
-            title.innerText = "EXCALIBUR IS IN ANOTHER PART OF THE CASTLE.";
-            let nextPlace = LEVELS[this.currentLevelIndex + 1]?.name || "The Depths";
-            text.innerText = `Proceeding to ${nextPlace}.`;
+            title.innerText = "SECTOR SECURED";
+            let nextPlace = LEVELS[this.currentLevelIndex + 1]?.name || "Final Conflict";
+            text.innerText = `Data suggests Excalibur is located in ${nextPlace}.`;
         }
         overlay.style.display = 'flex';
     }
@@ -442,31 +501,43 @@ class Game {
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         const level = LEVELS[this.currentLevelIndex];
+        
+        // Background
         let grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
         grad.addColorStop(0, level.color);
-        grad.addColorStop(1, "#000");
+        grad.addColorStop(1, "#050505");
         this.ctx.fillStyle = grad;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // Platforms
         for (let p of this.platforms) {
-            if (p.x + p.w > this.cameraX && p.x < this.cameraX + CONFIG.VIEWPORT_WIDTH) {
+            if (p.x + p.w > this.cameraX && p.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.fillStyle = level.accent;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, p.h);
+                // Detail line
+                this.ctx.fillStyle = "rgba(255,255,255,0.05)";
+                this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 4);
             }
         }
 
+        // Items
         for (let item of this.items) {
-            if (!item.collected && item.x + 30 > this.cameraX && item.x < this.cameraX + CONFIG.VIEWPORT_WIDTH) {
+            if (!item.collected && item.x + 40 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.fillStyle = "gold";
+                this.ctx.shadowBlur = 15;
+                this.ctx.shadowColor = "gold";
                 this.ctx.beginPath();
-                this.ctx.arc(item.x - this.cameraX + 15, item.y + 15, 8, 0, Math.PI*2);
+                this.ctx.arc(item.x - this.cameraX + 20, item.y + 20, 12, 0, Math.PI*2);
                 this.ctx.fill();
+                this.ctx.shadowBlur = 0;
             }
         }
 
-        this.ctx.fillStyle = "#111";
+        // Exit
+        this.ctx.fillStyle = "#000";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
         this.ctx.strokeStyle = "gold";
+        this.ctx.lineWidth = 3;
         this.ctx.strokeRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
 
         this.player.draw(this.ctx, this.cameraX);
