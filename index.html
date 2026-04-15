@@ -9,8 +9,6 @@
             --ui-gold: #ffd700;
             --ui-bg: rgba(10, 10, 15, 0.95);
             --accent: #a8dadc;
-            --slot-bg: rgba(255, 255, 255, 0.05);
-            --slot-border: #444;
             --danger: #ff4d4d;
         }
         body, html {
@@ -55,10 +53,10 @@
             border-left: 5px solid var(--ui-gold);
             padding: 20px 30px;
             backdrop-filter: blur(10px);
-            min-width: 400px;
+            min-width: 450px;
         }
         #level-name {
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: bold;
             color: var(--ui-gold);
             margin-bottom: 5px;
@@ -70,12 +68,12 @@
             text-transform: uppercase;
         }
         #key-counter {
-            margin-top: 10px;
-            font-size: 1.4rem;
+            margin-top: 15px;
+            font-size: 1.6rem;
             color: var(--ui-gold);
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
         }
         .hud-powerup {
             position: absolute;
@@ -87,54 +85,15 @@
             display: flex;
             align-items: center;
             gap: 15px;
-            opacity: 0.3;
-            transition: opacity 0.3s;
+            opacity: 0.1;
+            transform: translateY(20px);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .hud-powerup.active {
             opacity: 1;
+            transform: translateY(0);
             box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
             border: 1px solid var(--ui-gold);
-        }
-
-        #inventory-sidebar {
-            position: absolute;
-            right: 0;
-            top: 0;
-            width: 120px;
-            height: 100%;
-            background: var(--ui-bg);
-            border-left: 2px solid #333;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-top: 40px;
-            gap: 15px;
-            backdrop-filter: blur(10px);
-        }
-        .inv-label {
-            font-size: 0.7rem;
-            color: var(--ui-gold);
-            margin-bottom: 10px;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            text-transform: uppercase;
-            letter-spacing: 4px;
-            opacity: 0.7;
-        }
-        .inv-slot {
-            width: 70px;
-            height: 70px;
-            border: 2px solid var(--slot-border);
-            background: var(--slot-bg);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            transition: all 0.2s ease;
-        }
-        .inv-slot.active {
-            border-color: var(--ui-gold);
-            background: rgba(255, 215, 0, 0.1);
         }
 
         #message-overlay {
@@ -143,23 +102,26 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.92);
+            background: rgba(0,0,0,0.95);
             display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             text-align: center;
             z-index: 100;
-            backdrop-filter: blur(15px);
+            backdrop-filter: blur(20px);
         }
         #message-content h1 {
-            font-size: 3.5rem;
+            font-size: 4rem;
             color: var(--ui-gold);
             margin-bottom: 20px;
+            letter-spacing: 5px;
         }
         #message-content p {
             font-size: 1.5rem;
             color: #ccc;
+            max-width: 800px;
+            line-height: 1.6;
         }
         .btn {
             background: var(--ui-gold);
@@ -171,11 +133,13 @@
             cursor: pointer;
             margin-top: 50px;
             text-transform: uppercase;
-            transition: transform 0.1s;
+            transition: all 0.2s;
             pointer-events: auto;
         }
-        .btn:hover { transform: scale(1.05); }
-        .btn:active { transform: scale(0.95); }
+        .btn:hover { 
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -186,27 +150,16 @@
     <div id="ui-layer">
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
-            <div id="objective">Locate all 25 Access Keys.</div>
+            <div id="objective">Locate all Access Keys.</div>
             <div id="key-counter">🔑 <span id="keys-found">0</span> / 25</div>
         </div>
 
         <div class="hud-powerup" id="wing-indicator">
-            <span style="font-size: 2rem;">🪽</span>
-            <div>DOUBLE JUMP ENABLED</div>
-        </div>
-
-        <div id="inventory-sidebar">
-            <div class="inv-label">Access Keys</div>
-            <div class="inv-slot" id="slot-0"></div>
-            <div class="inv-slot" id="slot-1"></div>
-            <div class="inv-slot" id="slot-2"></div>
-            <div class="inv-slot" id="slot-3"></div>
-            <div class="inv-slot" id="slot-4"></div>
-            <div class="inv-slot" id="slot-5"></div>
-            <div class="inv-slot" id="slot-6"></div>
-            <div class="inv-slot" id="slot-7"></div>
-            <div class="inv-slot" id="slot-8"></div>
-            <div class="inv-slot" id="slot-9"></div>
+            <span style="font-size: 2.5rem;">🪽</span>
+            <div>
+                <div style="font-weight: bold; color: var(--ui-gold);">AERIAL ASCENSION</div>
+                <div style="font-size: 0.8rem; color: #888;">DOUBLE JUMP ENABLED</div>
+            </div>
         </div>
     </div>
 
@@ -214,7 +167,7 @@
         <div id="message-content">
             <h1 id="overlay-title">SECTOR SECURED</h1>
             <p id="overlay-text">The search continues...</p>
-            <button class="btn" id="next-btn" onclick="game.nextLevel()">ADVANCE TO NEXT SECTOR</button>
+            <button class="btn" id="next-btn" onclick="game.nextLevel()">INITIALIZE NEXT TRANSITION</button>
         </div>
     </div>
 </div>
@@ -222,7 +175,7 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Non-Linear Level Update: Branching Paths, Double Jump, and Key Requirement
+ * Power-up & Spawning Stability Update
  */
 
 const CONFIG = {
@@ -233,8 +186,7 @@ const CONFIG = {
     JUMP_FORCE: 14,
     INTERNAL_WIDTH: 1920,
     INTERNAL_HEIGHT: 1080,
-    LEVEL_LENGTH: 30, // Increased for alternative routes
-    UI_SIDEBAR_WIDTH: 120,
+    LEVEL_LENGTH: 30,
     PARALLAX_FACTOR: 0.3,
     PLAYER_BASE_HEIGHT: 110,
     PLAYER_SCALED_HEIGHT: 137.5,
@@ -244,7 +196,7 @@ const CONFIG = {
 
 const LEVELS = [
     { id: 1, name: "The Vaults", color: "#0c0d14", accent: "#1e2135", hint: "Gather 25 keys to unlock the elevator.", bg: 'Level1Dungeon.png' },
-    { id: 2, name: "Neural Pathways", color: "#1a1410", accent: "#2d241d", hint: "Exploration is mandatory.", bg: 'Level1Dungeon.png' },
+    { id: 2, name: "Neural Pathways", color: "#1a1410", accent: "#2d241d", hint: "Exploration is mandatory to proceed.", bg: 'Level1Dungeon.png' },
     { id: 3, name: "Crystal Spires", color: "#180f1b", accent: "#2d1b33", hint: "Reach the peak of Avalon.", bg: 'Level1Dungeon.png' }
 ];
 
@@ -295,9 +247,17 @@ class Player {
         this.assetsLoaded = true;
     }
 
+    // New safe spawning logic to prevent falling through floor
+    spawnAt(x, y) {
+        this.x = x;
+        this.y = y - this.height; // Set player on top of coordinate
+        this.vx = 0;
+        this.vy = 0;
+        this.grounded = true;
+        this.updateUI();
+    }
+
     reset() {
-        this.x = 200;
-        this.y = 400;
         this.vx = 0;
         this.vy = 0;
         this.grounded = false;
@@ -308,7 +268,6 @@ class Player {
         this.keysCollected = 0;
         this.hasWings = false;
         this.canDoubleJump = false;
-        this.height = CONFIG.PLAYER_SCALED_HEIGHT;
         this.updateUI();
     }
 
@@ -321,25 +280,12 @@ class Player {
             if(this.hasWings) wingInd.classList.add('active');
             else wingInd.classList.remove('active');
         }
-
-        // Fill Sidebar Slots
-        for(let i=0; i<10; i++) {
-            const slot = document.getElementById(`slot-${i}`);
-            if(slot) {
-                if(this.keysCollected > i) {
-                    slot.innerText = "🔑";
-                    slot.classList.add('active');
-                } else {
-                    slot.innerText = "";
-                    slot.classList.remove('active');
-                }
-            }
-        }
     }
 
     update(platforms, items) {
         let wasGrounded = this.grounded;
         
+        // Input Handling
         if (keys['ArrowRight'] || keys['d']) {
             this.vx += CONFIG.PLAYER_SPEED;
             this.direction = 1;
@@ -364,19 +310,20 @@ class Player {
             if (this.x + hitboxPadding < p.x + p.w && this.x + this.width - hitboxPadding > p.x &&
                 this.y < p.y + p.h && this.y + currentHeight > p.y) {
                 
-                // Falling on top
-                if (this.vy > 0 && this.y + currentHeight - this.vy <= p.y) {
+                // Top Collision (Landing)
+                if (this.vy > 0 && this.y + currentHeight - this.vy <= p.y + 10) {
                     this.y = p.y - currentHeight;
                     this.vy = 0;
                     this.grounded = true;
-                    this.canDoubleJump = this.hasWings;
+                    // Reset double jump only if we have the powerup
+                    if (this.hasWings) this.canDoubleJump = true;
                 } 
-                // Hit ceiling
-                else if (this.vy < 0 && this.y - this.vy >= p.y + p.h) {
+                // Bottom Collision (Ceiling)
+                else if (this.vy < 0 && this.y - this.vy >= p.y + p.h - 10) {
                     this.y = p.y + p.h;
                     this.vy = 0;
                 } 
-                // Wall collisions
+                // Side Collisions
                 else if (this.vx > 0 && this.x + this.width - hitboxPadding <= p.x + 20) {
                     this.x = p.x - this.width + hitboxPadding;
                     this.vx = 0;
@@ -387,22 +334,22 @@ class Player {
             }
         }
 
-        // Handle Jumping
+        // Jump Handling
         if (keys['JumpPressed']) {
             if (this.grounded) {
                 this.vy = -CONFIG.JUMP_FORCE;
                 this.grounded = false;
                 this.state = 'jump';
                 keys['JumpPressed'] = false;
-            } else if (this.canDoubleJump) {
-                this.vy = -CONFIG.JUMP_FORCE * 0.9;
-                this.canDoubleJump = false;
+            } else if (this.hasWings && this.canDoubleJump) {
+                this.vy = -CONFIG.JUMP_FORCE * 0.95;
+                this.canDoubleJump = false; // Use up the double jump
                 this.state = 'jump';
                 keys['JumpPressed'] = false;
             }
         }
 
-        // Animation states
+        // Animation State Logic
         if (this.grounded) {
             if (!wasGrounded) {
                 this.state = 'land';
@@ -431,7 +378,8 @@ class Player {
         for (let item of items) {
             if (!item.collected && 
                 this.x < item.x + 50 && this.x + this.width > item.x &&
-                this.y < item.y + 50 && this.y + currentHeight > item.y) {
+                this.y < item.y + 60 && this.y + currentHeight > item.y) {
+                
                 item.collected = true;
                 if (item.type === 'key') {
                     this.keysCollected++;
@@ -443,8 +391,12 @@ class Player {
             }
         }
 
-        // Bounds check
-        if (this.y > CONFIG.INTERNAL_HEIGHT + 400) this.reset();
+        // Fail-safe reset
+        if (this.y > CONFIG.INTERNAL_HEIGHT + 400) {
+            // Re-spawn on first platform
+            const firstPlat = platforms[0];
+            this.spawnAt(firstPlat.x + 100, firstPlat.y);
+        }
         if (this.x < 0) this.x = 0;
     }
 
@@ -477,10 +429,14 @@ class Player {
         
         ctx.drawImage(img, screenX + xOffset, this.y, drawW, drawH);
 
-        // Draw Wings if enabled
-        if (this.hasWings && this.state !== 'land') {
+        // Visual feedback for Wings
+        if (this.hasWings) {
             ctx.font = "40px Arial";
-            ctx.fillText("🪽", screenX - 10, this.y + 40);
+            // Pulse opacity
+            ctx.globalAlpha = 0.4 + Math.sin(Date.now() / 200) * 0.2;
+            ctx.fillText("🪽", screenX - 25, this.y + 50);
+            ctx.fillText("🪽", screenX + this.width - 15, this.y + 50);
+            ctx.globalAlpha = 1.0;
         }
         
         ctx.restore();
@@ -500,7 +456,7 @@ class Game {
         this.platforms = [];
         this.items = [];
         this.backgrounds = {};
-        this.exit = { x: 0, y: 0, w: 120, h: 200 };
+        this.exit = { x: 0, y: 0, w: 120, h: 220 };
         this.cameraX = 0;
         this.isPaused = false;
 
@@ -537,87 +493,99 @@ class Game {
 
     initLevel() {
         const levelData = LEVELS[this.currentLevelIndex];
-        document.getElementById('level-name').innerText = `SECTOR ${levelData.id}: ${levelData.name.toUpperCase()}`;
-        document.getElementById('objective').innerText = `CMD: ${levelData.hint}`;
+        document.getElementById('level-name').innerText = `SECTOR 0${levelData.id}: ${levelData.name.toUpperCase()}`;
+        document.getElementById('objective').innerText = `PROTOCOL: ${levelData.hint}`;
         
-        this.generateNonLinearLevel();
-        this.player.reset();
+        this.generateLevel();
+        this.player.reset(); // Resets keys and wings
+        
+        // Spawn Safe: On top of the first platform
+        const firstPlatform = this.platforms[0];
+        this.player.spawnAt(firstPlatform.x + 100, firstPlatform.y);
+        
         this.cameraX = 0;
         this.isPaused = false;
         document.getElementById('message-overlay').style.display = 'none';
     }
 
-    generateNonLinearLevel() {
+    generateLevel() {
         this.platforms = [];
         this.items = [];
         
-        // Start Platform
-        this.platforms.push({ x: 0, y: 800, w: 600, h: 400 });
+        // Solid Ground Start
+        this.platforms.push({ x: 0, y: 800, w: 800, h: 400 });
         
-        let lastX = 500;
+        let lastX = 700;
         let lastY = 800;
         let keysPlaced = 0;
+        let wingsPlaced = false;
 
-        // Generate branching paths
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
-            let gap = 140 + Math.random() * 100;
-            let width = 300 + Math.random() * 400;
-            let mainY = Math.max(200, Math.min(900, lastY + (Math.random() - 0.5) * 300));
+            let gap = 140 + Math.random() * 110;
+            let width = 350 + Math.random() * 450;
+            let mainY = Math.max(250, Math.min(850, lastY + (Math.random() - 0.5) * 350));
             
-            // The main path
             this.platforms.push({ x: lastX + gap, y: mainY, w: width, h: 60 });
             
-            // Random chance for an alternative high/low route
-            if (Math.random() > 0.4) {
-                let altY = mainY + (Math.random() > 0.5 ? -250 : 250);
-                altY = Math.max(150, Math.min(950, altY));
-                let altWidth = 250 + Math.random() * 300;
-                this.platforms.push({ x: lastX + gap + (width/4), y: altY, w: altWidth, h: 40 });
+            // Branching Path logic
+            if (Math.random() > 0.45) {
+                let altY = mainY + (Math.random() > 0.5 ? -260 : 260);
+                altY = Math.max(180, Math.min(920, altY));
+                let altWidth = 280 + Math.random() * 300;
+                this.platforms.push({ x: lastX + gap + 50, y: altY, w: altWidth, h: 40 });
                 
-                // Place keys on branches primarily
+                // Key on branch
                 if (keysPlaced < CONFIG.REQUIRED_KEYS) {
-                    this.items.push({ x: lastX + gap + (width/4) + (altWidth/2) - 20, y: altY - 60, type: 'key', collected: false });
+                    this.items.push({ x: lastX + gap + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
                     keysPlaced++;
+                }
+
+                // Rare Wings Placement (Only one per level)
+                if (!wingsPlaced && i > 4 && Math.random() > 0.7) {
+                    this.items.push({ x: lastX + gap + 150, y: altY - 100, type: 'wings', collected: false });
+                    wingsPlaced = true;
                 }
             } else {
-                // Key on main path if no branch
+                // Key on main path
                 if (keysPlaced < CONFIG.REQUIRED_KEYS && Math.random() > 0.5) {
-                    this.items.push({ x: lastX + gap + width/2 - 20, y: mainY - 60, type: 'key', collected: false });
+                    this.items.push({ x: lastX + gap + width/2, y: mainY - 80, type: 'key', collected: false });
                     keysPlaced++;
                 }
-            }
-
-            // Occasional Wings placement
-            if (i === 5) {
-                this.items.push({ x: lastX + gap + 100, y: mainY - 100, type: 'wings', collected: false });
             }
 
             lastX += gap + width;
             lastY = mainY;
         }
 
-        // Fill remaining keys if generator missed some
+        // Force wings if not placed
+        if (!wingsPlaced) {
+            let mid = Math.floor(this.platforms.length / 2);
+            let p = this.platforms[mid];
+            this.items.push({ x: p.x + p.w/2, y: p.y - 120, type: 'wings', collected: false });
+        }
+
+        // Ensure exactly 25 keys
         while (keysPlaced < CONFIG.REQUIRED_KEYS) {
-            let randPlat = this.platforms[Math.floor(Math.random() * this.platforms.length)];
-            this.items.push({ x: randPlat.x + randPlat.w/2, y: randPlat.y - 60, type: 'key', collected: false });
+            let p = this.platforms[Math.floor(Math.random() * this.platforms.length)];
+            this.items.push({ x: p.x + Math.random() * p.w, y: p.y - 80, type: 'key', collected: false });
             keysPlaced++;
         }
 
-        // Exit Platform
-        this.exit.x = lastX + 200;
-        this.exit.y = lastY - 200;
-        this.platforms.push({ x: lastX, y: lastY, w: 800, h: 400 });
+        // Exit on final platform
+        this.exit.x = lastX + 150;
+        this.exit.y = lastY - 220;
+        this.platforms.push({ x: lastX, y: lastY, w: 900, h: 400 });
     }
 
     update() {
         if (this.isPaused) return;
         this.player.update(this.platforms, this.items);
         
-        let targetCam = this.player.x - (CONFIG.INTERNAL_WIDTH - CONFIG.UI_SIDEBAR_WIDTH) / 3;
-        this.cameraX += (targetCam - this.cameraX) * 0.08;
+        let targetCam = this.player.x - (CONFIG.INTERNAL_WIDTH / 3);
+        this.cameraX += (targetCam - this.cameraX) * 0.1;
         this.cameraX = Math.max(0, this.cameraX);
 
-        // Check Exit with Key Requirement
+        // Check Exit Condition
         if (this.player.x + this.player.width > this.exit.x && 
             this.player.x < this.exit.x + this.exit.w &&
             this.player.y + this.player.height > this.exit.y &&
@@ -635,9 +603,15 @@ class Game {
         const title = document.getElementById('overlay-title');
         const text = document.getElementById('overlay-text');
 
-        title.innerText = "SECTOR DECODED";
-        text.innerText = "All keys verified. Avalon's core is within reach.";
+        title.innerText = "ACCESS GRANTED";
+        text.innerText = "Keys authenticated. Proceeding to deeper Avalon sectors. Power-ups must be recalibrated for the next environment.";
         overlay.style.display = 'flex';
+    }
+
+    nextLevel() {
+        this.currentLevelIndex++;
+        if (this.currentLevelIndex >= LEVELS.length) this.currentLevelIndex = 0;
+        this.initLevel();
     }
 
     drawBackground() {
@@ -668,41 +642,41 @@ class Game {
             if (p.x + p.w > this.cameraX && p.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.fillStyle = level.accent;
                 this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, p.h);
-                this.ctx.fillStyle = "rgba(255,255,255,0.08)";
-                this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 3);
+                // Top line highlight
+                this.ctx.fillStyle = "rgba(255,255,255,0.12)";
+                this.ctx.fillRect(p.x - this.cameraX, p.y, p.w, 4);
             }
         }
 
         // Items
         this.ctx.textAlign = "center";
         for (let item of this.items) {
-            if (!item.collected && item.x + 80 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
-                this.ctx.font = item.type === 'key' ? "40px Arial" : "55px Arial";
-                this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX + 20, item.y + 35);
+            if (!item.collected && item.x + 100 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
+                // Glow effect
+                this.ctx.shadowBlur = 15;
+                this.ctx.shadowColor = item.type === 'key' ? "gold" : "cyan";
                 
-                // Subtle glow for keys
-                if(item.type === 'key') {
-                    this.ctx.shadowBlur = 10;
-                    this.ctx.shadowColor = "gold";
-                    this.ctx.strokeStyle = "rgba(255,215,0,0.3)";
-                    this.ctx.lineWidth = 2;
-                    this.ctx.strokeRect(item.x - this.cameraX, item.y, 40, 40);
-                    this.ctx.shadowBlur = 0;
-                }
+                this.ctx.font = item.type === 'key' ? "45px Arial" : "65px Arial";
+                const bounce = Math.sin(Date.now() / 300) * 10;
+                this.ctx.fillText(item.type === 'key' ? "🔑" : "🪽", item.x - this.cameraX, item.y + bounce);
+                
+                this.ctx.shadowBlur = 0;
             }
         }
 
-        // Exit Door
-        const exitColor = this.player.keysCollected >= CONFIG.REQUIRED_KEYS ? "rgba(0, 255, 127, 0.4)" : "rgba(255, 0, 0, 0.2)";
-        this.ctx.fillStyle = exitColor;
+        // Exit Terminal
+        const exitReady = this.player.keysCollected >= CONFIG.REQUIRED_KEYS;
+        this.ctx.fillStyle = exitReady ? "rgba(0, 255, 127, 0.3)" : "rgba(255, 0, 0, 0.2)";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
-        this.ctx.strokeStyle = this.player.keysCollected >= CONFIG.REQUIRED_KEYS ? "#00ff7f" : "var(--danger)";
-        this.ctx.lineWidth = 5;
+        
+        this.ctx.strokeStyle = exitReady ? "#00ff7f" : "var(--danger)";
+        this.ctx.lineWidth = 6;
         this.ctx.strokeRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
         
-        this.ctx.fillStyle = "white";
-        this.ctx.font = "20px Arial";
-        this.ctx.fillText(this.player.keysCollected >= CONFIG.REQUIRED_KEYS ? "UNLOCKED" : "LOCKED", this.exit.x - this.cameraX + this.exit.w/2, this.exit.y - 15);
+        // Door details
+        this.ctx.fillStyle = exitReady ? "#00ff7f" : "white";
+        this.ctx.font = "bold 24px Courier New";
+        this.ctx.fillText(exitReady ? "OPEN" : "LOCKED", this.exit.x - this.cameraX + this.exit.w/2, this.exit.y + this.exit.h/2);
 
         this.player.draw(this.ctx, this.cameraX);
     }
