@@ -48,6 +48,51 @@
             height: 100%;
             pointer-events: none;
         }
+
+        /* Title Screen Styles */
+        #title-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #050505 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            pointer-events: auto;
+            text-align: center;
+        }
+        .title-main {
+            font-size: 6rem;
+            color: var(--ui-gold);
+            text-transform: uppercase;
+            letter-spacing: 15px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+            font-weight: bold;
+        }
+        .title-sub {
+            font-size: 2rem;
+            color: #fff;
+            letter-spacing: 8px;
+            opacity: 0.8;
+            margin-bottom: 80px;
+        }
+        .start-prompt {
+            font-size: 1.5rem;
+            color: var(--ui-gold);
+            animation: pulse 2s infinite;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.98); }
+            50% { opacity: 1; transform: scale(1); }
+        }
+
         .hud-top {
             position: absolute;
             top: 40px;
@@ -181,10 +226,17 @@
 <body>
 
 <div id="game-wrapper">
+    <!-- Title Screen -->
+    <div id="title-screen" onclick="game.startFromTitle()">
+        <div class="title-main">SHADOWS & DAYLIGHT</div>
+        <div class="title-sub">AVALON UNENDING</div>
+        <div class="start-prompt">CLICK OR PRESS ANY BUTTON TO BEGIN</div>
+    </div>
+
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.08</div>
+        <div id="watermark">AVALON UNENDING v0.09</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -226,12 +278,12 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.08
- * Updated Mechanics: Wall Toppling & Pushing
+ * Version: 0.09
+ * Added Title Screen
  */
 
 const CONFIG = {
-    VERSION: "0.08",
+    VERSION: "0.09",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -277,12 +329,12 @@ class Wall {
     constructor(x, y, bricks) {
         this.x = x;
         this.y = y;
-        this.bricks = bricks; // Local coordinates relative to wall origin
+        this.bricks = bricks; 
         this.isToppled = false;
         this.vx = 0;
         this.vy = 0;
-        this.toppleProgress = 0; // 0 to 1
-        this.direction = 1; // 1 for right, -1 for left
+        this.toppleProgress = 0; 
+        this.direction = 1; 
         this.w = CONFIG.BRICK_SIZE;
         this.h = bricks.length * CONFIG.BRICK_SIZE;
         this.pushedThisFrame = false;
@@ -302,16 +354,14 @@ class Wall {
         }
 
         if (this.isToppled && this.toppleProgress === 1) {
-            // Apply gravity if not on ground
             this.vy += CONFIG.GRAVITY;
             this.y += this.vy;
             this.x += this.vx;
-            this.vx *= 0.8; // High friction for heavy walls
+            this.vx *= 0.8; 
 
-            // Collision with static platforms
             let onGround = false;
-            const wallW = this.h; // Flat width
-            const wallH = CONFIG.BRICK_SIZE; // Flat height
+            const wallW = this.h; 
+            const wallH = CONFIG.BRICK_SIZE;
 
             for (let b of staticBricks) {
                 if (b.destroyed) continue;
@@ -326,9 +376,8 @@ class Wall {
                 }
             }
             
-            // Limit falling
             if (this.y > CONFIG.INTERNAL_HEIGHT + 200) {
-                this.isToppled = false; // "Despawn" or reset
+                this.isToppled = false; 
             }
         }
     }
@@ -338,10 +387,7 @@ class Wall {
         ctx.translate(this.x - cameraX, this.y);
         
         if (this.isToppled) {
-            // Rotate 90 degrees around bottom corner
             const angle = (Math.PI / 2) * this.toppleProgress * this.direction;
-            // If toppling right, pivot is bottom right. If left, bottom left.
-            // Simplified: pivot around the bottom-center of the base brick
             ctx.translate(this.w / 2, this.h);
             ctx.rotate(angle);
             ctx.translate(-this.w / 2, -this.h);
@@ -458,7 +504,6 @@ class Player {
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
         const physPad = (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2;
 
-        // Mechanics: Topple logic
         if (isKicking && this.attackTimer === 0 && !isDown) {
             this.attackTimer = CONFIG.ATTACK_COOLDOWN;
             const kx = this.direction === 1 ? this.x + this.width : this.x - 20;
@@ -472,7 +517,6 @@ class Player {
             }
         }
 
-        // Mechanics: Low Kick damage
         if (isLowKick && this.attackTimer === 0) {
             this.attackTimer = CONFIG.ATTACK_COOLDOWN;
             const kx = this.direction === 1 ? this.x + this.width : this.x - 20;
@@ -489,7 +533,6 @@ class Player {
             }
         }
 
-        // Collision: Static Platforms
         for (let b of staticBricks) {
             if (b.destroyed) continue;
             if (this.x + physPad < b.x + b.w && this.x + this.width - physPad > b.x &&
@@ -506,13 +549,10 @@ class Player {
             }
         }
 
-        // Collision: Walls
         for (let w of walls) {
             if (!w.isToppled) {
-                // Vertical Wall Collision
                 if (this.x + physPad < w.x + w.w && this.x + this.width - physPad > w.x &&
                     this.y < w.y + w.h && this.y + physH > w.y) {
-                    // Check individual non-destroyed bricks for verticality
                     let hitAny = false;
                     for(let b of w.bricks) if(!b.destroyed) hitAny = true;
                     if(!hitAny) continue;
@@ -524,7 +564,6 @@ class Player {
                     }
                 }
             } else if (w.toppleProgress === 1) {
-                // Fallen Wall (Plank) Collision
                 const wallW = w.h; 
                 const wallH = CONFIG.BRICK_SIZE;
                 const wallX = w.direction === 1 ? w.x : w.x - wallW + w.w;
@@ -537,10 +576,10 @@ class Player {
                         this.y = wallY - physH; this.vy = 0; foundGround = true; if (this.hasWings) this.extraJumps = 2;
                     } else if (this.vx > 0 && this.x + this.width - physPad <= wallX + 30) {
                         this.x = wallX - this.width + physPad;
-                        w.vx = 4; // Push
+                        w.vx = 4; 
                     } else if (this.vx < 0 && this.x + physPad >= wallX + wallW - 30) {
                         this.x = wallX + wallW - physPad;
-                        w.vx = -4; // Push
+                        w.vx = -4; 
                     }
                 }
             }
@@ -556,7 +595,6 @@ class Player {
             this.grounded = false; keys['JumpPressed'] = false;
         }
 
-        // State Machine
         let hs = Math.abs(this.vx);
         let ns = 'idle';
         if (!this.grounded) ns = (isKicking || isLowKick) ? 'kick' : 'jump';
@@ -573,7 +611,6 @@ class Player {
             if (this.animTimer++ >= (this.state === 'run' ? 4 : 8) / asm) { this.animFrame = (this.animFrame + 1) % 2; this.animTimer = 0; }
         }
 
-        // Items
         for (let itm of items) {
             if (!itm.collected && this.x + physPad < itm.x + 35 && this.x + this.width - physPad > itm.x + 15 && this.y < itm.y + 60 && this.y + physH > itm.y) {
                 itm.collected = true;
@@ -622,59 +659,60 @@ class Game {
         this.player = new Player(this);
         this.currentLevelIndex = 0;
         this.bricks = []; this.walls = []; this.items = []; this.particles = [];
-        this.cameraX = 0; this.isPaused = false;
+        this.cameraX = 0; this.isPaused = true; 
+        this.gameState = 'TITLE'; 
         this.exit = { x: 0, y: 0, w: 120, h: 220 };
         window.addEventListener('resize', () => this.handleResize());
-        this.handleResize(); this.start();
+        this.handleResize(); 
+        this.loop();
     }
     handleResize() {
         const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
         document.getElementById('game-wrapper').style.transform = `scale(${s})`;
     }
     addParticle(x, y, t, c) { this.particles.push(new Particle(x, y, t, c)); }
-    async start() { this.initLevel(); this.loop(); }
+    
+    startFromTitle() {
+        if (this.gameState !== 'TITLE') return;
+        this.gameState = 'PLAYING';
+        document.getElementById('title-screen').style.display = 'none';
+        this.initLevel();
+    }
+
     initLevel() {
         const ld = LEVELS[this.currentLevelIndex];
         document.getElementById('level-name').innerText = `LEVEL ${ld.id}: ${ld.name.toUpperCase()}`;
         document.getElementById('objective-text').innerText = ld.hint;
         this.bricks = []; this.walls = []; this.items = []; this.particles = [];
         
-        // Floor
         for(let i=0; i<15; i++) this.bricks.push(new Brick(i*60, 800));
         
-        // Procedural generation
         let lx = 900, ly = 800;
         for(let i=0; i<CONFIG.LEVEL_LENGTH; i++) {
             let gap = 200 + Math.random() * 250;
             let w = 300 + Math.random() * 500;
             let py = Math.max(300, Math.min(900, ly + (Math.random()-0.5)*300));
             
-            // Platform
             for(let j=0; j<Math.floor(w/60); j++) this.bricks.push(new Brick(lx + gap + j*60, py));
-            
-            // Key
             if(Math.random() > 0.4) this.items.push({x: lx + gap + w/2, y: py - 80, type: 'key', collected: false});
-
-            // Vertical Wall
             if(Math.random() > 0.4) {
                 let wb = [];
                 let wh = 3 + Math.floor(Math.random()*4);
                 for(let k=0; k<wh; k++) wb.push(new Brick(0,0, false, k*60));
                 this.walls.push(new Wall(lx + gap + 120, py - wh*60, wb));
             }
-            
             lx += gap + w; ly = py;
         }
 
         this.exit.x = lx + 200; this.exit.y = ly - 220;
-        for(let i=0; i<10; i++) this.bricks.push(new Brick(lx, ly + i*0)); // End plat
+        for(let i=0; i<10; i++) this.bricks.push(new Brick(lx, ly + i*0)); 
         
         this.player.reset(); this.player.spawnAt(100, 700);
         this.cameraX = 0; this.isPaused = false;
         document.getElementById('message-overlay').style.display = 'none';
     }
     update() {
-        if (this.isPaused) return;
+        if (this.isPaused || this.gameState === 'TITLE') return;
         this.player.update(this.walls, this.bricks, this.items);
         for(let w of this.walls) w.update(this.bricks);
         for(let p of this.particles) p.update();
@@ -688,6 +726,8 @@ class Game {
     nextLevel() { this.currentLevelIndex = (this.currentLevelIndex + 1) % LEVELS.length; this.initLevel(); }
     draw() {
         this.ctx.fillStyle = "#0c0d14"; this.ctx.fillRect(0,0,1920,1080);
+        if (this.gameState === 'TITLE') return;
+
         for(let b of this.bricks) b.draw(this.ctx, this.cameraX);
         for(let w of this.walls) w.draw(this.ctx, this.cameraX);
         for(let itm of this.items) if(!itm.collected) {
@@ -703,6 +743,7 @@ class Game {
 const LEVELS = [{id:1, name:"The Crumbling Reach", hint:"Topple walls to bridge gaps."},{id:2, name:"Logic's Gate", hint:"Push toppled walls carefully."}];
 const keys = {};
 window.addEventListener('keydown', e => {
+    if (game && game.gameState === 'TITLE') { game.startFromTitle(); return; }
     let k = e.key.toLowerCase(); keys[k] = true;
     if(k==='w' || k==='arrowup') keys['JumpPressed'] = true;
     if(k===' ' || k==='r') keys['KickPressed'] = true;
