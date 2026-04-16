@@ -184,7 +184,7 @@
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.05</div>
+        <div id="watermark">AVALON UNENDING v0.06</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -226,11 +226,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.05
+ * Version: 0.06
  */
 
 const CONFIG = {
-    VERSION: "0.05",
+    VERSION: "0.06",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -256,7 +256,7 @@ const CONFIG = {
     PLATFORM_COLOR: '#8d9196',
     PLATFORM_HIGHLIGHT: '#b0b4b9',
     KICK_SCALE: 1.1875,
-    LOW_KICK_SCALE: 0.96 // Shrunk to 90% of previous 1.068
+    LOW_KICK_SCALE: 0.96 
 };
 
 const LEVELS = [
@@ -692,25 +692,54 @@ class Player {
         const shoulderY = (this.y + CONFIG.PLAYER_PHYS_HEIGHT) - (finalDrawH * 0.75);
         const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
-        // BACK WING (Now rendering first, appearing behind the player)
-        if (this.hasWings) {
+        // Function to draw wing elements
+        const drawWing = (side) => {
             ctx.save();
             ctx.font = "64px Arial"; 
             ctx.globalAlpha = wingOpacity;
             ctx.shadowBlur = 15;
             ctx.shadowColor = "gold";
+            
             if (this.direction === 1) {
-                // Front wing from previous logic is now back wing
-                ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
+                // Facing Right
+                if (side === 'left') {
+                    // Left Wing (back-left relative to player body)
+                    ctx.translate(screenX - 45 + 32, shoulderY - 32);
+                    ctx.scale(-1, 1);
+                    ctx.fillText("🪽", -32, 32);
+                } else {
+                    // Right Wing (back-right relative to player body)
+                    ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
+                }
             } else {
-                ctx.translate(screenX - 45 + 32, shoulderY - 32);
-                ctx.scale(-1, 1);
-                ctx.fillText("🪽", -32, 32);
+                // Facing Left
+                if (side === 'left') {
+                    // Wing rendered "front" in left-facing state
+                    ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
+                } else {
+                    // Wing rendered "back" in left-facing state
+                    ctx.translate(screenX - 45 + 32, shoulderY - 32);
+                    ctx.scale(-1, 1);
+                    ctx.fillText("🪽", -32, 32);
+                }
             }
             ctx.restore();
+        };
+
+        // RENDERING PASSES
+        // Pass 1: Draw wings that appear BEHIND the player
+        if (this.hasWings) {
+            if (this.direction === 1) {
+                // Facing right: BOTH wings are in the back
+                drawWing('left');
+                drawWing('right');
+            } else {
+                // Facing left: Only the far wing is in the back
+                drawWing('right'); 
+            }
         }
 
-        // PLAYER SPRITE
+        // Pass 2: Draw the PLAYER SPRITE
         ctx.save();
         if (this.direction === -1) {
             ctx.translate(screenX + (finalDrawW / 2), 0);
@@ -720,22 +749,13 @@ class Player {
         ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
         ctx.restore();
 
-        // FRONT WING (Now rendering after player, appearing in front)
+        // Pass 3: Draw wings that appear in FRONT of the player
         if (this.hasWings) {
-            ctx.save();
-            ctx.font = "64px Arial"; 
-            ctx.globalAlpha = wingOpacity;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "gold";
-            if (this.direction === 1) {
-                // Back wing from previous logic is now front wing
-                ctx.translate(screenX - 45 + 32, shoulderY - 32);
-                ctx.scale(-1, 1);
-                ctx.fillText("🪽", -32, 32);
-            } else {
-                ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
+            if (this.direction === -1) {
+                // Facing left: The near wing is in front
+                drawWing('left');
             }
-            ctx.restore();
+            // Facing right: No wings drawn in front (both were in Pass 1)
         }
 
         ctx.restore();
