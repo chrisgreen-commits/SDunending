@@ -1105,9 +1105,20 @@ class Game {
             this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
         }
 
-        this.exit.x = lastX + 150;
-        this.exit.y = lastY - 220;
-        this.createPlatform(lastX, lastY, 900, 400);
+       // --- EXIT PLACEMENT (biased toward end of level) ---
+
+const farPlatforms = this.bricks.filter(p => p.x > this.levelWidth * 0.6);
+
+const exitPlatform = farPlatforms.length > 0
+    ? farPlatforms[Math.floor(Math.random() * farPlatforms.length)]
+    : this.bricks[Math.floor(Math.random() * this.bricks.length)];
+
+this.exit = {
+    x: exitPlatform.x + (exitPlatform.w / 2) - 20,
+    y: exitPlatform.y - 80,
+    w: 40,
+    h: 80
+};
     }
 
     update() {
