@@ -240,7 +240,7 @@
 <div id="game-wrapper">
     <canvas id="gameCanvas"></canvas>
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.30Gemini</div>
+        <div id="watermark">AVALON UNENDING v0.31Claude</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -273,7 +273,7 @@
     <div id="title-screen" onclick="game.beginGame()">
         <h1>SHADOWS & DAYLIGHT</h1>
         <h2>AVALON UNENDING</h2>
-        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.30Gemini</div>
+        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.31Claude</div>
         <div class="pulse-text">Click or Press any Button to Begin</div>
     </div>
 
@@ -289,11 +289,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.30Gemini - Low kick leg graphic shortened
+ * Version: 0.31Claude - Low kick leg graphic shortened
  */
 
 const CONFIG = {
-    VERSION: "0.30Gemini",
+    VERSION: "0.31Claude",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -1006,7 +1006,6 @@ class Game {
         this.isPaused = false;
         document.getElementById('title-screen').style.display = 'none';
         this.initLevel();
-        this.playLevelMusic();
     }
 
     addParticle(x, y, text, color) {
@@ -1028,7 +1027,8 @@ class Game {
         })));
         results.forEach(res => { if (res.img) this.backgrounds[res.src] = res.img; });
     }
-playLevelMusic() {
+
+    playLevelMusic() {
         const musicFile = LEVELS[this.currentLevelIndex].music;
         
         // Stop current music if it's different
@@ -1040,11 +1040,12 @@ playLevelMusic() {
         // Create and play new track
         this.currentMusic = new Audio(musicFile);
         this.currentMusic.loop = true;
-        this.currentMusic.volume = 0.4; // Adjust volume as needed
+        this.currentMusic.volume = 0.4;
         
         // Browsers require user interaction before playing audio
         this.currentMusic.play().catch(e => console.log("Audio waiting for interaction"));
     }
+
     initLevel() {
         const levelData = LEVELS[this.currentLevelIndex];
         document.getElementById('level-name').innerText = `LEVEL ${levelData.id}: ${levelData.name.toUpperCase()}`;
