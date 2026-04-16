@@ -240,7 +240,7 @@
 <div id="game-wrapper">
     <canvas id="gameCanvas"></canvas>
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.29Chris</div>
+        <div id="watermark">AVALON UNENDING v0.30Gemini</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -273,7 +273,7 @@
     <div id="title-screen" onclick="game.beginGame()">
         <h1>SHADOWS & DAYLIGHT</h1>
         <h2>AVALON UNENDING</h2>
-        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.29Chris</div>
+        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.30Gemini</div>
         <div class="pulse-text">Click or Press any Button to Begin</div>
     </div>
 
@@ -289,11 +289,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.29Chris - Low kick leg graphic shortened
+ * Version: 0.30Gemini - Low kick leg graphic shortened
  */
 
 const CONFIG = {
-    VERSION: "0.29Chris",
+    VERSION: "0.30Gemini",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -327,7 +327,7 @@ const LEVELS = [
         color: "#0c0d14", 
         accent: CONFIG.PLATFORM_COLOR, 
         hint: "High kick (Space/R) to topple walls. Push them to bridge gaps.", 
-        bg: 'Level1Dungeon.png' 
+        bg: 'Level1Dungeon.png', 
         music: 'Dark_Elves_Jimena_Contreras.mp3'
     },
     { 
@@ -336,7 +336,7 @@ const LEVELS = [
         color: "#1a1410", 
         accent: CONFIG.PLATFORM_COLOR, 
         hint: "High kick (Space/R) to topple walls. Push them to bridge gaps.", 
-        bg: 'Level2Servant.png' 
+        bg: 'Level2Servant.png', 
         music: 'Never_Dont_Stop_Schwartzy.mp3'
     },
     { 
@@ -345,7 +345,7 @@ const LEVELS = [
         color: "#180f1b", 
         accent: CONFIG.PLATFORM_COLOR, 
         hint: "High kick (Space/R) to topple walls. Push them to bridge gaps.", 
-        bg: 'Level3Armoury.png' 
+        bg: 'Level3Armoury.png', 
         music: 'Yacoby_Schwartzy.mp3'
     }
 ];
@@ -1125,11 +1125,13 @@ playLevelMusic() {
 
         if (!wingsPlaced) {
             this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
+            CONFIG.REQUIRED_KEYS = keysPlaced;
+        document.getElementById('key-counter').innerHTML = `🔑 <span id="keys-found">0</span> / ${CONFIG.REQUIRED_KEYS}`;
         }
 
        // --- EXIT PLACEMENT (biased toward end of level) ---
 
-const farPlatforms = this.bricks.filter(p => p.x > this.levelWidth * 0.6);
+const farPlatforms = this.bricks.filter(p => p.x > lastX * 0.6);
 
 const exitPlatform = farPlatforms.length > 0
     ? farPlatforms[Math.floor(Math.random() * farPlatforms.length)]
@@ -1190,7 +1192,7 @@ this.exit = {
                 this.ctx.drawImage(bgImg, x, 0, bgWidth, CONFIG.INTERNAL_HEIGHT);
             }
         } else {
-            this.ctx.fillStyle = .color;
+            this.ctx.fillStyle = level.color;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         }
 
