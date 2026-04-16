@@ -14,6 +14,7 @@
             --platform-highlight: #b0b4b9;
             --caffeine: #ff8c00;
         }
+
         body, html {
             margin: 0;
             padding: 0;
@@ -27,6 +28,7 @@
             height: 100vh;
             width: 100vw;
         }
+
         #game-wrapper {
             position: relative;
             width: 1920px;
@@ -36,10 +38,12 @@
             overflow: hidden;
             transform-origin: center;
         }
+
         canvas {
             display: block;
             image-rendering: pixelated;
         }
+
         #ui-layer {
             position: absolute;
             top: 0;
@@ -48,6 +52,8 @@
             height: 100%;
             pointer-events: none;
         }
+
+        /* HUD STYLING */
         .hud-top {
             position: absolute;
             top: 40px;
@@ -59,6 +65,7 @@
             min-width: 450px;
             box-shadow: 10px 10px 30px rgba(0,0,0,0.5);
         }
+
         #level-name {
             font-size: 2.2rem;
             font-weight: bold;
@@ -66,11 +73,13 @@
             margin-bottom: 5px;
             letter-spacing: 2px;
         }
+
         #objective-label {
             font-size: 1.1rem;
             color: #aaa;
             text-transform: uppercase;
         }
+
         #key-counter {
             margin-top: 15px;
             font-size: 1.6rem;
@@ -79,6 +88,7 @@
             align-items: center;
             gap: 15px;
         }
+
         .powerup-container {
             position: absolute;
             bottom: 40px;
@@ -87,6 +97,7 @@
             flex-direction: column;
             gap: 15px;
         }
+
         .hud-powerup {
             background: var(--ui-bg);
             padding: 15px 25px;
@@ -100,14 +111,17 @@
             border: 2px solid transparent;
             min-width: 300px;
         }
+
         .hud-powerup.active {
             opacity: 1;
             transform: translateY(0);
         }
+
         #wing-indicator.active {
             box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
             border: 2px solid var(--ui-gold);
         }
+
         #caffeine-indicator.active {
             box-shadow: 0 0 30px rgba(255, 140, 0, 0.4);
             border: 2px solid var(--caffeine);
@@ -132,14 +146,15 @@
             border: 1px solid rgba(255, 215, 0, 0.2);
         }
 
-        #message-overlay {
+        /* SCREENS */
+        #message-overlay, #title-screen {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.95);
-            display: none;
+            display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
@@ -147,18 +162,59 @@
             z-index: 100;
             backdrop-filter: blur(20px);
         }
+
+        #title-screen {
+            background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        #title-screen h1 {
+            font-size: 6rem;
+            color: var(--ui-gold);
+            margin-bottom: 0px;
+            letter-spacing: 12px;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+        }
+
+        #title-screen h2 {
+            font-size: 2.5rem;
+            color: #fff;
+            margin-top: 10px;
+            letter-spacing: 8px;
+            opacity: 0.8;
+            font-weight: 300;
+        }
+
+        .pulse-text {
+            margin-top: 100px;
+            font-size: 1.5rem;
+            color: var(--ui-gold);
+            letter-spacing: 4px;
+            animation: pulse 2s infinite;
+            text-transform: uppercase;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+
         #message-content h1 {
             font-size: 4rem;
             color: var(--ui-gold);
             margin-bottom: 20px;
             letter-spacing: 5px;
         }
+
         #message-content p {
             font-size: 1.5rem;
             color: #ccc;
             max-width: 800px;
             line-height: 1.6;
         }
+
         .btn {
             background: var(--ui-gold);
             color: black;
@@ -172,6 +228,7 @@
             transition: all 0.2s;
             pointer-events: auto;
         }
+
         .btn:hover { 
             transform: scale(1.05);
             box-shadow: 0 0 40px rgba(255, 215, 0, 0.6);
@@ -182,9 +239,8 @@
 
 <div id="game-wrapper">
     <canvas id="gameCanvas"></canvas>
-    
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.08</div>
+        <div id="watermark">AVALON UNENDING v0.09</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -203,7 +259,6 @@
                     <div style="font-size: 0.8rem; color: #fff; opacity: 0.8; text-transform: uppercase;">Speed Multiplier: 2.0x</div>
                 </div>
             </div>
-
             <div class="hud-powerup" id="wing-indicator">
                 <span style="font-size: 2.5rem; filter: drop-shadow(0 0 10px gold);">🪽</span>
                 <div>
@@ -214,7 +269,15 @@
         </div>
     </div>
 
-    <div id="message-overlay">
+    <!-- Title Screen -->
+    <div id="title-screen" onclick="game.beginGame()">
+        <h1>SHADOWS & DAYLIGHT</h1>
+        <h2>AVALON UNENDING</h2>
+        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.09 • THE TOPPLE MECHANIC</div>
+        <div class="pulse-text">Click or Press any Button to Begin</div>
+    </div>
+
+    <div id="message-overlay" style="display: none;">
         <div id="message-content">
             <h1 id="overlay-title">LEVEL COMPLETE</h1>
             <p id="overlay-text">The journey into Avalon continues...</p>
@@ -226,11 +289,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.08 - Topple Mechanics
+ * Version: 0.09 - Topple Mechanics + Title Screen
  */
 
 const CONFIG = {
-    VERSION: "0.08",
+    VERSION: "0.09",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -243,8 +306,6 @@ const CONFIG = {
     LEVEL_LENGTH: 30,
     PARALLAX_FACTOR: 0.3,
     PLAYER_BASE_HEIGHT: 206 * 1.15,
-    PLAYER_CROUCH_HEIGHT: 154,
-    PLAYER_RUN_HEIGHT: 193,       
     PLAYER_PHYS_HEIGHT: 120,      
     PLAYER_PHYS_WIDTH: 60,        
     REQUIRED_KEYS: 25,
@@ -260,10 +321,33 @@ const CONFIG = {
 };
 
 const LEVELS = [
-    { id: 1, name: "Avalon Dungeon", color: "#0c0d14", accent: CONFIG.PLATFORM_COLOR, hint: "High kick (Space) to topple walls. Push them to bridge gaps.", bg: 'Level1Dungeon.png' },
-    { id: 2, name: "Neural Pathways", color: "#1a1410", accent: CONFIG.PLATFORM_COLOR, hint: "Tactical positioning is key.", bg: 'Level1Dungeon.png' },
-    { id: 3, name: "Crystal Spires", color: "#180f1b", accent: CONFIG.PLATFORM_COLOR, hint: "Reach the peak of Avalon.", bg: 'Level1Dungeon.png' }
+    { 
+        id: 1, 
+        name: "Avalon Dungeon", 
+        color: "#0c0d14", 
+        accent: CONFIG.PLATFORM_COLOR, 
+        hint: "High kick (Space/R) to topple walls. Push them to bridge gaps.", 
+        bg: 'Level1Dungeon.png' 
+    },
+    { 
+        id: 2, 
+        name: "Neural Pathways", 
+        color: "#1a1410", 
+        accent: CONFIG.PLATFORM_COLOR, 
+        hint: "Tactical positioning is key.", 
+        bg: 'Level1Dungeon.png' 
+    },
+    { 
+        id: 3, 
+        name: "Crystal Spires", 
+        color: "#180f1b", 
+        accent: CONFIG.PLATFORM_COLOR, 
+        hint: "Reach the peak of Avalon.", 
+        bg: 'Level1Dungeon.png' 
+    }
 ];
+
+// --- CLASSES ---
 
 class Particle {
     constructor(x, y, text, color = "white") {
@@ -275,11 +359,13 @@ class Particle {
         this.vy = -1.5;
         this.opacity = 1.0;
     }
+
     update() {
         this.y += this.vy;
         this.life--;
         this.opacity = this.life / 60;
     }
+
     draw(ctx, cameraX) {
         ctx.save();
         ctx.globalAlpha = this.opacity;
@@ -303,40 +389,46 @@ class Brick {
         this.flash = 0;
         this.isStatic = isStatic;
     }
+
     damage() {
         this.health--;
         this.flash = 10;
-        if (this.health <= 0) this.destroyed = true;
+        if (this.health <= 0) {
+            this.destroyed = true;
+        }
     }
+
     draw(ctx, cameraX, offsetX = 0, offsetY = 0) {
         if (this.destroyed) return;
+        
         const screenX = (this.x + offsetX) - cameraX;
         const screenY = this.y + offsetY;
+
         ctx.fillStyle = this.flash > 0 ? '#fff' : CONFIG.PLATFORM_COLOR;
         if (this.flash > 0) this.flash--;
+
         ctx.fillRect(screenX, screenY, this.w, this.h);
+        
+        // Beveling / Texture
         ctx.strokeStyle = CONFIG.PLATFORM_HIGHLIGHT;
         ctx.lineWidth = 2;
         ctx.strokeRect(screenX + 2, screenY + 2, this.w - 4, this.h - 4);
     }
 }
 
-/**
- * Wall Class: Groups vertical bricks that can be toppled.
- */
 class Wall {
     constructor(x, y, heightBricks, game) {
         this.game = game;
         this.originX = x;
-        this.originY = y; // Base of the wall
+        this.originY = y;
         this.bricks = [];
         for (let i = 0; i < heightBricks; i++) {
             this.bricks.push(new Brick(0, -(i + 1) * CONFIG.BRICK_SIZE, false));
         }
         this.isToppled = false;
-        this.rotation = 0; // Current angle in degrees
+        this.rotation = 0;
         this.targetRotation = 0;
-        this.toppleDirection = 1; // 1 = right, -1 = left
+        this.toppleDirection = 1;
         this.vx = 0;
         this.vy = 0;
         this.isFalling = false;
@@ -355,38 +447,35 @@ class Wall {
     }
 
     update() {
-        // Handle rotation animation
         if (this.isFalling) {
             const step = 5 * this.toppleDirection;
             this.rotation += step;
             if (Math.abs(this.rotation) >= 90) {
                 this.rotation = this.targetRotation;
                 this.isFalling = false;
-                // Move brick coords to actual world space for easier collision when flat
                 this.finalizeTopple();
             }
             return;
         }
 
-        // Handle physics for toppled walls (pushing and gravity)
         if (this.isToppled) {
+            // Apply physics to the toppled block segment
             this.vy += CONFIG.GRAVITY;
             this.currentY += this.vy;
             this.currentX += this.vx;
-            this.vx *= 0.9; // Friction
+            this.vx *= 0.9;
 
             let foundGround = false;
-            // Check collision with game platforms
             for (let platformBrick of this.game.bricks) {
                 if (platformBrick.destroyed) continue;
                 
-                // Wall footprint when flat: 
-                // X range: currentX to currentX + (heightBricks * size) if right, or currentX - ... if left
                 const wallW = this.bricks.length * CONFIG.BRICK_SIZE;
                 const startX = this.toppleDirection === 1 ? this.currentX : this.currentX - wallW;
-                
-                if (startX < platformBrick.x + platformBrick.w && startX + wallW > platformBrick.x &&
-                    this.currentY - CONFIG.BRICK_SIZE < platformBrick.y + platformBrick.h && this.currentY > platformBrick.y) {
+
+                if (startX < platformBrick.x + platformBrick.w && 
+                    startX + wallW > platformBrick.x &&
+                    this.currentY - CONFIG.BRICK_SIZE < platformBrick.y + platformBrick.h && 
+                    this.currentY > platformBrick.y) {
                     
                     if (this.vy >= 0) {
                         this.currentY = platformBrick.y;
@@ -400,7 +489,6 @@ class Wall {
     }
 
     finalizeTopple() {
-        // Shift logical coordinates of bricks to match visual flat state
         const wallLength = this.bricks.length;
         for (let i = 0; i < wallLength; i++) {
             if (this.toppleDirection === 1) {
@@ -415,28 +503,29 @@ class Wall {
     draw(ctx, cameraX) {
         ctx.save();
         ctx.translate(this.currentX - cameraX, this.currentY);
+        
         if (this.isFalling) {
             ctx.rotate(this.rotation * Math.PI / 180);
         }
+
         for (let b of this.bricks) {
             b.draw(ctx, 0, 0, 0);
         }
         ctx.restore();
     }
 
-    // Get bounds for collision detection
     getBounds() {
         const wallW = this.bricks.length * CONFIG.BRICK_SIZE;
         if (!this.isToppled || this.isFalling) {
-            // Vertical State
+            // Vertical Wall Bounds
             return {
-                x: this.currentX - (this.toppleDirection === -1 ? 0 : 0),
+                x: this.currentX,
                 y: this.currentY - wallW,
                 w: CONFIG.BRICK_SIZE,
                 h: wallW
             };
         } else {
-            // Flat State
+            // Horizontal Platform Bounds
             const startX = this.toppleDirection === 1 ? this.currentX : this.currentX - wallW;
             return {
                 x: startX,
@@ -451,7 +540,6 @@ class Wall {
 class Player {
     constructor(game) {
         this.game = game;
-        this.baseHeight = CONFIG.PLAYER_BASE_HEIGHT;
         this.width = 108; 
         this.keysCollected = 0;
         this.hasWings = false;
@@ -475,8 +563,8 @@ class Player {
     async loadAssets() {
         const sources = {
             idle: 'WinterIdle.png',
-            walk1: 'WinterWalk1.png', 
-            walk2: 'WinterWalk2.png', 
+            walk1: 'WinterWalk1.png',
+            walk2: 'WinterWalk2.png',
             walk3: 'WinterWalk3.png',
             run1: 'WinterRun1.png',
             run2: 'WinterRun2.png',
@@ -485,6 +573,7 @@ class Player {
             kick: 'WinterKick.png',
             kickLow: 'WinterKick2.png'
         };
+
         const loadImg = (src) => new Promise((resolve) => {
             const img = new Image();
             img.onload = () => resolve(img);
@@ -492,19 +581,19 @@ class Player {
                 const canvas = document.createElement('canvas');
                 canvas.width = 100; canvas.height = 150;
                 const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#3498db';
-                ctx.fillRect(0,0,100,150);
+                ctx.fillStyle = '#3498db'; ctx.fillRect(0,0,100,150);
                 resolve(canvas);
             };
             img.src = src;
         });
-        const results = await Promise.all(Object.entries(sources).map(async ([key, src]) => {
-            const img = await loadImg(src);
-            return [key, img];
-        }));
+
+        const results = await Promise.all(
+            Object.entries(sources).map(async ([key, src]) => [key, await loadImg(src)])
+        );
+
         this.sprites = Object.fromEntries(results);
         this.assetsLoaded = true;
-        
+
         const idleImg = this.sprites.idle;
         this.width = (CONFIG.PLAYER_BASE_HEIGHT * (idleImg.naturalWidth / idleImg.naturalHeight));
     }
@@ -542,15 +631,24 @@ class Player {
     updateUI() {
         const keySpan = document.getElementById('keys-found');
         if(keySpan) keySpan.innerText = this.keysCollected;
+
         const wingInd = document.getElementById('wing-indicator');
-        if(wingInd) this.hasWings ? wingInd.classList.add('active') : wingInd.classList.remove('active');
+        if(wingInd) {
+            if (this.hasWings) wingInd.classList.add('active');
+            else wingInd.classList.remove('active');
+        }
+
         const coffeeInd = document.getElementById('caffeine-indicator');
-        if(coffeeInd) this.hasCoffee ? coffeeInd.classList.add('active') : coffeeInd.classList.remove('active');
+        if(coffeeInd) {
+            if (this.hasCoffee) coffeeInd.classList.add('active');
+            else coffeeInd.classList.remove('active');
+        }
     }
 
     handleInput() {
-        const inputLeft = keys['ArrowLeft'] || keys['a'];
-        const inputRight = keys['ArrowRight'] || keys['d'];
+        const inputLeft = keys['arrowleft'] || keys['a'];
+        const inputRight = keys['arrowright'] || keys['d'];
+
         const gp = navigator.getGamepads()[0];
         let gpLeft = false, gpRight = false;
         if (gp) {
@@ -562,12 +660,23 @@ class Player {
             if (gp.buttons[2].pressed) keys['KickPressed'] = true; 
             if (gp.buttons[7].pressed) keys['LowKickPressed'] = true; 
         }
-        if (!inputLeft && !inputRight && !gpLeft && !gpRight) this.isRunning = false;
+
+        if (!inputLeft && !inputRight && !gpLeft && !gpRight) {
+            this.isRunning = false;
+        }
+
         const speedMult = this.hasCoffee ? 2.0 : 1.0;
         const accel = (this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED) * speedMult;
         const max = (this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED) * speedMult;
-        if (inputRight || gpRight) { this.vx += accel; this.direction = 1; } 
-        else if (inputLeft || gpLeft) { this.vx -= accel; this.direction = -1; }
+
+        if (inputRight || gpRight) {
+            this.vx += accel;
+            this.direction = 1;
+        } else if (inputLeft || gpLeft) {
+            this.vx -= accel;
+            this.direction = -1;
+        }
+
         this.vx = Math.max(-max, Math.min(max, this.vx));
     }
 
@@ -575,6 +684,7 @@ class Player {
         if (this.attackTimer > 0) return;
         const px = this.x + this.width / 2;
         const py = this.y + CONFIG.PLAYER_PHYS_HEIGHT + 20;
+
         for (let b of bricks) {
             if (!b.destroyed && px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h + 20) {
                 b.damage();
@@ -584,16 +694,12 @@ class Player {
         }
     }
 
-    /**
-     * Updated High Kick: Check for walls to topple.
-     */
     performKick(walls, bricks, isLow = false) {
         if (this.attackTimer > 0) return;
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
         const ky = isLow ? (this.y + CONFIG.PLAYER_PHYS_HEIGHT - 30) : (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);   
         
         if (!isLow) {
-            // Check walls for toppling
             for (let w of walls) {
                 if (w.isToppled) continue;
                 const bounds = w.getBounds();
@@ -605,7 +711,6 @@ class Player {
             }
         }
 
-        // Standard brick damage (for low kick or bricks within walls)
         const allBricks = [...bricks];
         for (let w of walls) allBricks.push(...w.bricks);
 
@@ -630,11 +735,12 @@ class Player {
         this.y += this.vy;
         
         let foundGround = false;
-        const isHoldingDown = (keys['ArrowDown'] || keys['s']);
+        const isHoldingDown = (keys['arrowdown'] || keys['s']);
         const isPunching = isHoldingDown && this.grounded && !keys['LowKickPressed'];
         const isKicking = keys['KickPressed'];
         const isLowKick = keys['LowKickPressed'];
         const horizontalSpeed = Math.abs(this.vx);
+        
         if (horizontalSpeed < 1.0) this.isRunning = false;
 
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
@@ -654,31 +760,36 @@ class Player {
             this.performPunch(bricks);
         }
 
-        // Collision logic
         const checkCollision = (obj) => {
             if (obj.destroyed) return;
-            if (this.x + physPad < obj.x + obj.w && this.x + this.width - physPad > obj.x &&
-                this.y < obj.y + obj.h && this.y + physH > obj.y) {
+            
+            if (this.x + physPad < obj.x + obj.w && 
+                this.x + this.width - physPad > obj.x &&
+                this.y < obj.y + obj.h && 
+                this.y + physH > obj.y) {
                 
+                // Floor
                 if (this.vy >= 0 && this.y + physH - this.vy <= obj.y + 35) {
                     this.y = obj.y - physH;
                     this.vy = 0;
                     foundGround = true;
                     if (this.hasWings) this.extraJumps = 2;
-                } else if (this.vy < 0 && this.y - this.vy >= obj.y + obj.h - 35) {
+                } 
+                // Ceiling
+                else if (this.vy < 0 && this.y - this.vy >= obj.y + obj.h - 35) {
                     this.y = obj.y + obj.h;
                     this.vy = 0;
                     if (obj.damage) obj.damage();
                     this.game.addParticle(this.x + (this.width / 2), this.y + 40, "Ow!");
-                } else if (this.vx > 0 && this.x + this.width - physPad <= obj.x + 20) {
+                } 
+                // Walls
+                else if (this.vx > 0 && this.x + this.width - physPad <= obj.x + 20) {
                     this.x = obj.x - this.width + physPad;
                     this.vx = 0;
-                    // Push logic for walls
                     if (obj.isWallBrick) obj.parentWall.vx = 2.5;
                 } else if (this.vx < 0 && this.x + physPad >= obj.x + obj.w - 20) {
                     this.x = obj.x + obj.w - physPad;
                     this.vx = 0;
-                    // Push logic for walls
                     if (obj.isWallBrick) obj.parentWall.vx = -2.5;
                 }
             }
@@ -687,31 +798,34 @@ class Player {
         for (let b of bricks) checkCollision(b);
         for (let w of walls) {
             if (w.isToppled && !w.isFalling) {
-                // If the wall is toppled, treat bricks as colliding objects
                 for (let b of w.bricks) {
-                    const worldB = { 
+                    checkCollision({ 
                         x: w.currentX + b.x, 
                         y: w.currentY + b.y, 
-                        w: b.w, h: b.h, 
+                        w: b.w, 
+                        h: b.h, 
                         destroyed: b.destroyed,
                         isWallBrick: true,
                         parentWall: w
-                    };
-                    checkCollision(worldB);
+                    });
                 }
             } else if (!w.isFalling) {
-                // Vertical wall collision
-                const b = w.getBounds();
-                checkCollision({ ...b, destroyed: false });
+                checkCollision({ ...w.getBounds(), destroyed: false });
             }
         }
 
         this.grounded = foundGround;
-        if (this.grounded) this.groundedFrames++;
-        else { this.groundedFrames = 0; this.airFrames++; }
-        const wasGenuinelyAirborne = this.airFrames > 3;
-        if (this.grounded) this.airFrames = 0;
+        if (this.grounded) {
+            this.groundedFrames++;
+            this.airFrames = 0;
+        } else {
+            this.groundedFrames = 0;
+            this.airFrames++;
+        }
 
+        const wasGenuinelyAirborne = this.airFrames > 3;
+
+        // Jump Handling
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.extraJumps > 0)) {
                 const jumpMult = this.hasCoffee ? 1.2 : 1.0; 
@@ -722,18 +836,21 @@ class Player {
             }
         }
 
+        // Animation Logic
         let newState = 'idle';
         if (!this.grounded) {
             if (this.airFrames > 3) newState = (isKicking || isLowKick) ? 'kick' : 'jump';
             else {
-                if (horizontalSpeed > 1.5) newState = this.isRunning ? 'run' : 'walk';
-                else if (horizontalSpeed > 0.8) newState = 'walk';
-                else newState = 'idle';
+                newState = horizontalSpeed > 1.5 ? (this.isRunning ? 'run' : 'walk') : (horizontalSpeed > 0.8 ? 'walk' : 'idle');
             }
         } else {
-            if (this.landTimer > 0) { newState = 'land'; this.landTimer--; }
-            else if (!wasGrounded && wasGenuinelyAirborne) { newState = 'land'; this.landTimer = 6; }
-            else if (isLowKick) newState = 'kickLow';
+            if (this.landTimer > 0) {
+                newState = 'land';
+                this.landTimer--;
+            } else if (!wasGrounded && wasGenuinelyAirborne) {
+                newState = 'land';
+                this.landTimer = 6;
+            } else if (isLowKick) newState = 'kickLow';
             else if (isKicking) newState = (isHoldingDown && this.grounded) ? 'kickLow' : 'kick';
             else if (isPunching) newState = 'land'; 
             else if (horizontalSpeed > 1.5) newState = this.isRunning ? 'run' : 'walk';
@@ -741,86 +858,119 @@ class Player {
             else newState = 'idle';
         }
 
-        if (this.state !== newState) { this.animFrame = 0; this.animTimer = 0; this.state = newState; }
-        const animSpeedMult = this.hasCoffee ? 2.0 : 1.0;
-        if (this.state === 'run') {
-            if (this.animTimer++ >= 4 / animSpeedMult) { this.animFrame = (this.animFrame + 1) % 2; this.animTimer = 0; }
-        } else if (this.state === 'walk') {
-            if (this.animTimer++ >= 8 / animSpeedMult) { this.animFrame = (this.animFrame + 1) % 2; this.animTimer = 0; }
+        if (this.state !== newState) {
+            this.animFrame = 0;
+            this.animTimer = 0;
+            this.state = newState;
         }
 
+        const animSpeedMult = this.hasCoffee ? 2.0 : 1.0;
+        if (this.state === 'run' || this.state === 'walk') {
+            const limit = this.state === 'run' ? 4 : 8;
+            if (this.animTimer++ >= limit / animSpeedMult) {
+                this.animFrame = (this.animFrame + 1) % 2;
+                this.animTimer = 0;
+            }
+        }
+
+        // Collection
         for (let item of items) {
             if (!item.collected) {
-                const itemPhysPad = 15;
-                if (this.x + physPad < item.x + 50 - itemPhysPad && this.x + this.width - physPad > item.x + itemPhysPad &&
+                if (this.x + physPad < item.x + 50 - 15 && this.x + this.width - physPad > item.x + 15 &&
                     this.y < item.y + 60 && this.y + physH > item.y) {
                     item.collected = true;
                     if (item.type === 'key') this.keysCollected++;
-                    else if (item.type === 'wings') { this.hasWings = true; this.extraJumps = 2; this.game.addParticle(this.x, this.y, "Aerial Ascension!", "gold"); } 
-                    else if (item.type === 'coffee') { this.hasCoffee = true; this.game.addParticle(this.x, this.y, "Caffeine Rush!", "#ff8c00"); }
+                    else if (item.type === 'wings') {
+                        this.hasWings = true;
+                        this.extraJumps = 2;
+                        this.game.addParticle(this.x, this.y, "Aerial Ascension!", "gold");
+                    } 
+                    else if (item.type === 'coffee') {
+                        this.hasCoffee = true;
+                        this.game.addParticle(this.x, this.y, "Caffeine Rush!", "#ff8c00");
+                    }
                     this.updateUI();
                 }
             }
         }
 
+        // Pit reset
         if (this.y > CONFIG.INTERNAL_HEIGHT + 1000) {
             let respawn = this.game.bricks.find(b => !b.destroyed);
-            if (respawn) this.spawnAt(respawn.x, respawn.y - 200);
-            else this.spawnAt(0, 500);
+            this.spawnAt(respawn ? respawn.x : 0, respawn ? respawn.y - 200 : 500);
         }
         if (this.x < 0) this.x = 0;
     }
 
     draw(ctx, cameraX) {
         if (!this.assetsLoaded) return;
+        
         ctx.save();
         let img = this.sprites.idle;
         let targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
         let scaleFactor = 1.0;
-        const idleImg = this.sprites.idle;
-        const idleW = (CONFIG.PLAYER_BASE_HEIGHT * (idleImg.naturalWidth / idleImg.naturalHeight));
-        
+
         switch(this.state) {
-            case 'run': img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2; targetDrawH = 193 * 1.15; break;
-            case 'walk': img = this.animFrame === 0 ? this.sprites.walk1 : this.sprites.walk2; targetDrawH = CONFIG.PLAYER_BASE_HEIGHT; break;
+            case 'run': 
+                img = this.animFrame === 0 ? this.sprites.run1 : this.sprites.run2; 
+                targetDrawH = 193 * 1.15; 
+                break;
+            case 'walk': 
+                img = this.animFrame === 0 ? this.sprites.walk1 : this.sprites.walk2; 
+                targetDrawH = CONFIG.PLAYER_BASE_HEIGHT; 
+                break;
             case 'jump': img = this.sprites.jump; targetDrawH = CONFIG.PLAYER_BASE_HEIGHT; break;
             case 'land': img = this.sprites.land; targetDrawH = 154 * 1.15; break;
             case 'kick': img = this.sprites.kick; targetDrawH = 206; scaleFactor = CONFIG.KICK_SCALE; break;
             case 'kickLow': img = this.sprites.kickLow; targetDrawH = 206; scaleFactor = CONFIG.LOW_KICK_SCALE; break;
-            default: img = this.sprites.idle; targetDrawH = CONFIG.PLAYER_BASE_HEIGHT;
         }
 
-        const aspectRatio = img.naturalWidth / img.naturalHeight;
-        let finalDrawH = targetDrawH * scaleFactor;
-        let finalDrawW = (targetDrawH * aspectRatio) * scaleFactor;
-        const physBoxCenter = this.x + (this.width / 2);
-        const screenX = physBoxCenter - (finalDrawW / 2) - cameraX;
-        let yDrawOffset = CONFIG.PLAYER_PHYS_HEIGHT - finalDrawH;
+        const finalDrawH = targetDrawH * scaleFactor;
+        const finalDrawW = (targetDrawH * (img.naturalWidth / img.naturalHeight)) * scaleFactor;
+        const screenX = (this.x + (this.width / 2)) - (finalDrawW / 2) - cameraX;
         const shoulderY = (this.y + CONFIG.PLAYER_PHYS_HEIGHT) - (finalDrawH * 0.75);
-        const wingOpacity = 0.85 + Math.sin(Date.now() / 150) * 0.1;
 
         const drawWing = (side) => {
-            ctx.save(); ctx.font = "64px Arial"; ctx.globalAlpha = wingOpacity; ctx.shadowBlur = 15; ctx.shadowColor = "gold";
+            ctx.save();
+            ctx.font = "64px Arial";
+            ctx.globalAlpha = 0.85 + Math.sin(Date.now() / 150) * 0.1;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "gold";
             if (this.direction === 1) {
-                if (side === 'left') { ctx.translate(screenX - 45 + 32, shoulderY - 32); ctx.scale(-1, 1); ctx.fillText("🪽", -32, 32); } 
-                else { ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY); }
+                if (side === 'left') {
+                    ctx.translate(screenX - 45 + 32, shoulderY - 32);
+                    ctx.scale(-1, 1);
+                    ctx.fillText("🪽", -32, 32);
+                } else {
+                    ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
+                }
             } else {
-                if (side === 'left') { ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY); } 
-                else { ctx.translate(screenX - 45 + 32, shoulderY - 32); ctx.scale(-1, 1); ctx.fillText("🪽", -32, 32); }
+                if (side === 'left') {
+                    ctx.fillText("🪽", screenX + finalDrawW + 5, shoulderY);
+                } else {
+                    ctx.translate(screenX - 45 + 32, shoulderY - 32);
+                    ctx.scale(-1, 1);
+                    ctx.fillText("🪽", -32, 32);
+                }
             }
             ctx.restore();
         };
 
-        if (this.hasWings) { if (this.direction === 1) { drawWing('left'); drawWing('right'); } else { drawWing('right'); } }
+        if (this.hasWings) {
+            if (this.direction === 1) { drawWing('left'); drawWing('right'); } else { drawWing('right'); }
+        }
+
         ctx.save();
         if (this.direction === -1) {
             ctx.translate(screenX + (finalDrawW / 2), 0);
             ctx.scale(-1, 1);
             ctx.translate(-(screenX + (finalDrawW / 2)), 0);
         }
-        ctx.drawImage(img, screenX, this.y + yDrawOffset, finalDrawW, finalDrawH);
+        ctx.drawImage(img, screenX, this.y + (CONFIG.PLAYER_PHYS_HEIGHT - finalDrawH), finalDrawW, finalDrawH);
         ctx.restore();
+
         if (this.hasWings && this.direction === -1) drawWing('left');
+        
         ctx.restore();
     }
 }
@@ -832,55 +982,75 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
         this.canvas.width = CONFIG.INTERNAL_WIDTH;
         this.canvas.height = CONFIG.INTERNAL_HEIGHT;
+
         this.player = new Player(this);
         this.currentLevelIndex = 0;
+        
         this.bricks = [];
         this.walls = [];
         this.items = [];
         this.particles = [];
         this.backgrounds = {};
+        
         this.exit = { x: 0, y: 0, w: 120, h: 220 };
         this.cameraX = 0;
-        this.isPaused = false;
+        this.isPaused = true;
+        this.gameStarted = false;
+
         this.handleResize();
         window.addEventListener('resize', () => this.handleResize());
-        this.start();
+        
+        this.loadAssetsAndReady();
     }
-    addParticle(x, y, text, color) { this.particles.push(new Particle(x, y, text, color)); }
+
+    async loadAssetsAndReady() {
+        await this.loadBackgrounds();
+        await this.player.loadAssets();
+    }
+
+    beginGame() {
+        if (this.gameStarted) return;
+        this.gameStarted = true;
+        this.isPaused = false;
+        document.getElementById('title-screen').style.display = 'none';
+        this.initLevel();
+    }
+
+    addParticle(x, y, text, color) {
+        this.particles.push(new Particle(x, y, text, color));
+    }
+
     handleResize() {
         const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
         this.wrapper.style.transform = `scale(${scale})`;
     }
-    async start() {
-        await this.loadBackgrounds();
-        await this.player.loadAssets();
-        this.initLevel();
-        this.loop();
-    }
+
     async loadBackgrounds() {
         const bgSources = [...new Set(LEVELS.map(l => l.bg))];
-        const loads = bgSources.map(src => new Promise(resolve => {
+        const results = await Promise.all(bgSources.map(src => new Promise(resolve => {
             const img = new Image();
             img.onload = () => resolve({src, img});
             img.onerror = () => resolve({src, img: null});
             img.src = src;
-        }));
-        const results = await Promise.all(loads);
+        })));
         results.forEach(res => { if (res.img) this.backgrounds[res.src] = res.img; });
     }
+
     initLevel() {
         const levelData = LEVELS[this.currentLevelIndex];
         document.getElementById('level-name').innerText = `LEVEL ${levelData.id}: ${levelData.name.toUpperCase()}`;
         document.getElementById('objective-text').innerText = levelData.hint;
+        
         this.generateLevel();
         this.player.reset();
         this.particles = [];
-        const firstBrick = this.bricks[0];
-        this.player.spawnAt(firstBrick.x + 100, firstBrick.y);
+        
+        this.player.spawnAt(this.bricks[0].x + 100, this.bricks[0].y);
         this.cameraX = 0;
         this.isPaused = false;
         document.getElementById('message-overlay').style.display = 'none';
     }
+
     createPlatform(x, y, w, h) {
         const cols = Math.ceil(w / CONFIG.BRICK_SIZE);
         const rows = Math.ceil(h / CONFIG.BRICK_SIZE);
@@ -890,42 +1060,44 @@ class Game {
             }
         }
     }
+
     generateLevel() {
         this.bricks = [];
         this.walls = [];
         this.items = [];
+        
+        // Start pad
         this.createPlatform(0, 800, 900, 400);
-        
-        let lastX = 800, lastY = 800, keysPlaced = 0, wingsPlaced = false, coffeePlaced = false;
-        
+
+        let lastX = 800;
+        let lastY = 800;
+        let keysPlaced = 0;
+        let wingsPlaced = false;
+        let coffeePlaced = false;
+
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
             let gap = 180 + Math.random() * 120;
             let width = 420 + Math.random() * 420;
-            let diff = (Math.random() - 0.5) * 350;
-            let mainY = Math.max(250, Math.min(850, lastY + diff));
+            let mainY = Math.max(250, Math.min(850, lastY + (Math.random() - 0.5) * 350));
+            
             if (mainY < lastY - CONFIG.MAX_JUMP_REACH) mainY = lastY - CONFIG.MAX_JUMP_REACH;
             
             const platX = lastX + gap;
             this.createPlatform(platX, mainY, width, 60);
 
-            // Group bricks into Wall entities
+            // Wall Placement
             if (Math.random() > 0.4) {
-                const wallHeightInBricks = Math.floor(3 + Math.random() * 4);
-                const wallPosition = Math.random();
-                let wallX;
-                if (wallPosition < 0.33) wallX = platX;
-                else if (wallPosition < 0.66) wallX = platX + (Math.floor((width / CONFIG.BRICK_SIZE) / 2) * CONFIG.BRICK_SIZE);
-                else wallX = platX + width - CONFIG.BRICK_SIZE;
-                
-                this.walls.push(new Wall(wallX, mainY, wallHeightInBricks, this));
+                const wallX = platX + (Math.random() > 0.5 ? 0 : width - CONFIG.BRICK_SIZE);
+                this.walls.push(new Wall(wallX, mainY, Math.floor(3 + Math.random() * 4), this));
             }
 
+            // High Platform Placement
             if (Math.random() > 0.45) {
-                let altYOffset = CONFIG.MIN_HEAD_CLEARANCE + 60 + (Math.random() * 80);
-                let altY = Math.max(120, Math.min(940, mainY + (Math.random() > 0.5 ? altYOffset : -altYOffset)));
+                let altY = Math.max(120, Math.min(940, mainY + (Math.random() > 0.5 ? 320 : -320)));
                 let altWidth = 320 + Math.random() * 280;
                 this.createPlatform(platX + 40, altY, altWidth, 60);
-                
+
+                // Rewards
                 if (keysPlaced < CONFIG.REQUIRED_KEYS) {
                     this.items.push({ x: platX + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
                     keysPlaced++;
@@ -939,66 +1111,102 @@ class Game {
                     coffeePlaced = true;
                 }
             }
-            lastX = platX + width; 
+
+            lastX = platX + width;
             lastY = mainY;
         }
 
-        if (!wingsPlaced) this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
-        if (!coffeePlaced) this.items.push({ x: lastX - 1000, y: 400, type: 'coffee', collected: false });
-        this.exit.x = lastX + 150; 
+        // Safety wings
+        if (!wingsPlaced) {
+            this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
+        }
+
+        this.exit.x = lastX + 150;
         this.exit.y = lastY - 220;
         this.createPlatform(lastX, lastY, 900, 400);
     }
 
     update() {
         if (this.isPaused) return;
+
         this.player.update(this.walls, this.bricks, this.items);
         for (let w of this.walls) w.update();
+        
         for (let i = this.particles.length - 1; i >= 0; i--) {
             this.particles[i].update();
             if (this.particles[i].life <= 0) this.particles.splice(i, 1);
         }
-        let targetCam = this.player.x - (CONFIG.INTERNAL_WIDTH / 3);
-        this.cameraX += (targetCam - this.cameraX) * 0.1;
+
+        // Camera
+        this.cameraX += ((this.player.x - CONFIG.INTERNAL_WIDTH / 3) - this.cameraX) * 0.1;
         this.cameraX = Math.max(0, this.cameraX);
-        if (this.player.x + this.player.width > this.exit.x && 
-            this.player.x < this.exit.x + this.exit.w &&
-            this.player.y + CONFIG.PLAYER_PHYS_HEIGHT > this.exit.y &&
-            this.player.y < this.exit.y + this.exit.h) {
-            if (this.player.keysCollected >= CONFIG.REQUIRED_KEYS) this.completeLevel();
+
+        // Exit Check
+        if (this.player.x + this.player.width > this.exit.x && this.player.x < this.exit.x + this.exit.w &&
+            this.player.y + CONFIG.PLAYER_PHYS_HEIGHT > this.exit.y && this.player.y < this.exit.y + this.exit.h) {
+            if (this.player.keysCollected >= CONFIG.REQUIRED_KEYS) {
+                this.completeLevel();
+            }
         }
     }
-    completeLevel() { this.isPaused = true; document.getElementById('message-overlay').style.display = 'flex'; }
-    nextLevel() { this.currentLevelIndex++; if (this.currentLevelIndex >= LEVELS.length) this.currentLevelIndex = 0; this.initLevel(); }
-    
+
+    completeLevel() {
+        this.isPaused = true;
+        document.getElementById('message-overlay').style.display = 'flex';
+    }
+
+    nextLevel() {
+        this.currentLevelIndex++;
+        if (this.currentLevelIndex >= LEVELS.length) this.currentLevelIndex = 0;
+        this.initLevel();
+    }
+
     draw() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
         const level = LEVELS[this.currentLevelIndex];
         const bgImg = this.backgrounds[level.bg];
+
         if (bgImg) {
             const bgScale = CONFIG.INTERNAL_HEIGHT / bgImg.naturalHeight;
             const bgWidth = bgImg.naturalWidth * bgScale;
-            const parallaxX = -(this.cameraX * CONFIG.PARALLAX_FACTOR) % bgWidth;
-            for (let x = parallaxX - bgWidth; x < CONFIG.INTERNAL_WIDTH; x += bgWidth) this.ctx.drawImage(bgImg, x, 0, bgWidth, CONFIG.INTERNAL_HEIGHT);
+            const px = -(this.cameraX * CONFIG.PARALLAX_FACTOR) % bgWidth;
+            for (let x = px - bgWidth; x < CONFIG.INTERNAL_WIDTH; x += bgWidth) {
+                this.ctx.drawImage(bgImg, x, 0, bgWidth, CONFIG.INTERNAL_HEIGHT);
+            }
         } else {
             this.ctx.fillStyle = level.color;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         }
 
-        for (let b of this.bricks) if (b.x + b.w > this.cameraX && b.x < this.cameraX + CONFIG.INTERNAL_WIDTH) b.draw(this.ctx, this.cameraX);
-        for (let w of this.walls) w.draw(this.ctx, this.cameraX);
-        
+        // Environment
+        for (let b of this.bricks) {
+            if (b.x + b.w > this.cameraX && b.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
+                b.draw(this.ctx, this.cameraX);
+            }
+        }
+
+        for (let w of this.walls) {
+            w.draw(this.ctx, this.cameraX);
+        }
+
+        // Items
         this.ctx.textAlign = "center";
         for (let item of this.items) {
             if (!item.collected && item.x + 100 > this.cameraX && item.x < this.cameraX + CONFIG.INTERNAL_WIDTH) {
                 this.ctx.shadowBlur = 25;
-                if (item.type === 'key') { this.ctx.shadowColor = "gold"; this.ctx.font = "55px Arial"; this.ctx.fillText("🔑", item.x - this.cameraX, item.y + Math.sin(Date.now() / 300) * 15); }
-                else if (item.type === 'wings') { this.ctx.shadowColor = "cyan"; this.ctx.font = "75px Arial"; this.ctx.fillText("🪽", item.x - this.cameraX, item.y + Math.sin(Date.now() / 300) * 15); }
-                else if (item.type === 'coffee') { this.ctx.shadowColor = "#ff8c00"; this.ctx.font = "65px Arial"; this.ctx.fillText("☕", item.x - this.cameraX, item.y + Math.sin(Date.now() / 300) * 15); }
+                this.ctx.shadowColor = item.type === 'key' ? "gold" : (item.type === 'wings' ? "cyan" : "#ff8c00");
+                this.ctx.font = item.type === 'wings' ? "75px Arial" : "55px Arial";
+                this.ctx.fillText(
+                    item.type === 'key' ? "🔑" : (item.type === 'wings' ? "🪽" : "☕"), 
+                    item.x - this.cameraX, 
+                    item.y + Math.sin(Date.now() / 300) * 15
+                );
                 this.ctx.shadowBlur = 0;
             }
         }
-        
+
+        // Exit
         const ready = this.player.keysCollected >= CONFIG.REQUIRED_KEYS;
         this.ctx.fillStyle = ready ? "rgba(0, 255, 127, 0.3)" : "rgba(255, 0, 0, 0.2)";
         this.ctx.fillRect(this.exit.x - this.cameraX, this.exit.y, this.exit.w, this.exit.h);
@@ -1007,25 +1215,54 @@ class Game {
         this.ctx.fillStyle = ready ? "#00ff7f" : "white";
         this.ctx.font = "bold 24px Courier New";
         this.ctx.fillText(ready ? "OPEN" : "LOCKED", this.exit.x - this.cameraX + this.exit.w/2, this.exit.y + this.exit.h/2);
+
         this.player.draw(this.ctx, this.cameraX);
         for (let p of this.particles) p.draw(this.ctx, this.cameraX);
     }
-    loop() { this.update(); this.draw(); requestAnimationFrame(() => this.loop()); }
+
+    loop() { 
+        if (!this.gameStarted) {
+            const gp = navigator.getGamepads()[0];
+            if (gp) {
+                for (let b of gp.buttons) {
+                    if (b.pressed) { this.beginGame(); break; }
+                }
+            }
+        }
+        this.update(); 
+        this.draw(); 
+        requestAnimationFrame(() => this.loop()); 
+    }
 }
 
+// --- INPUT HANDLERS ---
 const keys = {};
+
 window.addEventListener('keydown', e => {
-    const now = Date.now(), key = e.key.toLowerCase();
-    const isMoveKey = (key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft');
-    if (isMoveKey && !keys[key]) {
-        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) game.player.isRunning = true;
-        game.player.lastTapTime = now; game.player.lastTapKey = key;
+    const now = Date.now();
+    const key = e.key.toLowerCase();
+    
+    if (!game.gameStarted) { 
+        game.beginGame(); 
+        return; 
     }
+
+    const isMoveKey = (key === 'd' || key === 'arrowright' || key === 'a' || key === 'arrowleft');
+    
+    if (isMoveKey && !keys[key]) {
+        if (key === game.player.lastTapKey && (now - game.player.lastTapTime) < 300) {
+            game.player.isRunning = true;
+        }
+        game.player.lastTapTime = now;
+        game.player.lastTapKey = key;
+    }
+
     keys[key] = true;
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = true;
     if (key === ' ' || key === 'r') keys['KickPressed'] = true;
     if (key === 'f') keys['LowKickPressed'] = true;
 });
+
 window.addEventListener('keyup', e => {
     const key = e.key.toLowerCase();
     keys[key] = false;
@@ -1033,8 +1270,13 @@ window.addEventListener('keyup', e => {
     if (key === ' ' || key === 'r') keys['KickPressed'] = false;
     if (key === 'f') keys['LowKickPressed'] = false;
 });
+
+// --- INIT ---
 let game;
-window.onload = () => { game = new Game(); };
+window.onload = () => {
+    game = new Game();
+    game.loop();
+};
 </script>
 </body>
 </html>
