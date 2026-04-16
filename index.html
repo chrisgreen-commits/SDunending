@@ -184,7 +184,7 @@
     <canvas id="gameCanvas"></canvas>
     
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.03</div>
+        <div id="watermark">AVALON UNENDING v0.04</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -226,11 +226,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.03
+ * Version: 0.04
  */
 
 const CONFIG = {
-    VERSION: "0.03",
+    VERSION: "0.04",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -804,48 +804,75 @@ class Game {
     generateLevel() {
         this.bricks = [];
         this.items = [];
+        // Starter platform
         this.createPlatform(0, 800, 900, 400);
+        
         let lastX = 800, lastY = 800, keysPlaced = 0, wingsPlaced = false, coffeePlaced = false;
         
         for (let i = 0; i < CONFIG.LEVEL_LENGTH; i++) {
-            let gap = 180 + Math.random() * 120, width = 420 + Math.random() * 420;
+            let gap = 180 + Math.random() * 120;
+            let width = 420 + Math.random() * 420;
             let diff = (Math.random() - 0.5) * 350;
             let mainY = Math.max(250, Math.min(850, lastY + diff));
+            
+            // Safety: Ensure jump height is within reach
             if (mainY < lastY - CONFIG.MAX_JUMP_REACH) mainY = lastY - CONFIG.MAX_JUMP_REACH;
             
-            this.createPlatform(lastX + gap, mainY, width, 60);
+            // Main platform segment
+            const platX = lastX + gap;
+            this.createPlatform(platX, mainY, width, 60);
 
-            if (Math.random() > 0.6) {
+            // Variable Wall Placement: Can appear at Start, Middle, or End of a platform
+            if (Math.random() > 0.55) {
                 const wallHeight = 180 + Math.random() * 240;
-                this.createPlatform(lastX + gap, mainY - wallHeight, 60, wallHeight);
+                const wallPosition = Math.random();
+                let wallX;
+                
+                if (wallPosition < 0.33) {
+                    // Start of platform
+                    wallX = platX;
+                } else if (wallPosition < 0.66) {
+                    // Middle of platform (snapped to brick grid)
+                    const middleCol = Math.floor((width / CONFIG.BRICK_SIZE) / 2);
+                    wallX = platX + (middleCol * CONFIG.BRICK_SIZE);
+                } else {
+                    // End of platform
+                    wallX = platX + width - CONFIG.BRICK_SIZE;
+                }
+                
+                this.createPlatform(wallX, mainY - wallHeight, CONFIG.BRICK_SIZE, wallHeight);
             }
 
+            // Alt platform / Powerup chances
             if (Math.random() > 0.45) {
                 let altYOffset = CONFIG.MIN_HEAD_CLEARANCE + 60 + (Math.random() * 80);
                 let altY = Math.max(120, Math.min(940, mainY + (Math.random() > 0.5 ? altYOffset : -altYOffset)));
                 let altWidth = 320 + Math.random() * 280;
-                this.createPlatform(lastX + gap + 40, altY, altWidth, 60);
+                this.createPlatform(platX + 40, altY, altWidth, 60);
                 
                 if (keysPlaced < CONFIG.REQUIRED_KEYS) {
-                    this.items.push({ x: lastX + gap + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
+                    this.items.push({ x: platX + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
                     keysPlaced++;
                 }
                 if (!wingsPlaced && i > 3 && Math.random() > 0.7) {
-                    this.items.push({ x: lastX + gap + 150, y: altY - 100, type: 'wings', collected: false });
+                    this.items.push({ x: platX + 150, y: altY - 100, type: 'wings', collected: false });
                     wingsPlaced = true;
                 }
                 if (!coffeePlaced && i > 6 && Math.random() > 0.8) {
-                    this.items.push({ x: lastX + gap + 250, y: altY - 100, type: 'coffee', collected: false });
+                    this.items.push({ x: platX + 250, y: altY - 100, type: 'coffee', collected: false });
                     coffeePlaced = true;
                 }
             }
-            lastX += gap + width; lastY = mainY;
+            lastX = platX + width; 
+            lastY = mainY;
         }
 
+        // Safety powerups if not spawned
         if (!wingsPlaced) this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
         if (!coffeePlaced) this.items.push({ x: lastX - 1000, y: 400, type: 'coffee', collected: false });
 
-        this.exit.x = lastX + 150; this.exit.y = lastY - 220;
+        this.exit.x = lastX + 150; 
+        this.exit.y = lastY - 220;
         this.createPlatform(lastX, lastY, 900, 400);
     }
     update() {
