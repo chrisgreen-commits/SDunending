@@ -240,7 +240,7 @@
 <div id="game-wrapper">
     <canvas id="gameCanvas"></canvas>
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.20GPT</div>
+        <div id="watermark">AVALON UNENDING v0.21Gemini</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -273,7 +273,7 @@
     <div id="title-screen" onclick="game.beginGame()">
         <h1>SHADOWS & DAYLIGHT</h1>
         <h2>AVALON UNENDING</h2>
-        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.20GPT</div>
+        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.21Gemini</div>
         <div class="pulse-text">Click or Press any Button to Begin</div>
     </div>
 
@@ -289,11 +289,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.20GPT - Low kick leg graphic shortened
+ * Version: 0.21Gemini - Low kick leg graphic shortened
  */
 
 const CONFIG = {
-    VERSION: "0.20GPT",
+    VERSION: "0.21Gemini",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -693,7 +693,7 @@ class Player {
     performKick(walls, bricks, isLow = false) {
         if (this.attackTimer > 0) return;
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
-        const ky = isLow ? (this.y + CONFIG.PLAYER_PHYS_HEIGHT + 10) : (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);
+        const ky = isLow ? (this.y + CONFIG.PLAYER_PHYS_HEIGHT - 30) : (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);
         
         if (!isLow) {
             for (let w of walls) {
