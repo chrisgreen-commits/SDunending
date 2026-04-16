@@ -308,7 +308,7 @@ const CONFIG = {
     PLAYER_BASE_HEIGHT: 206 * 1.15,
     PLAYER_PHYS_HEIGHT: 120,      
     PLAYER_PHYS_WIDTH: 60,        
-    REQUIRED_KEYS: 25,
+    REQUIRED_KEYS: 0,
     MIN_HEAD_CLEARANCE: 260, 
     MAX_JUMP_REACH: 440,
     BRICK_SIZE: 60,
@@ -1062,19 +1062,18 @@ class Game {
         results.forEach(res => { if (res.img) this.backgrounds[res.src] = res.img; });
     }
 
-    initLevel() {
+  initLevel() {
         const levelData = LEVELS[this.currentLevelIndex];
         document.getElementById('level-name').innerText = `LEVEL ${levelData.id}: ${levelData.name.toUpperCase()}`;
         document.getElementById('objective-text').innerText = levelData.hint;
         
         this.generateLevel();
-        this.player.reset();
-        this.particles = [];
         
-        this.player.spawnAt(this.bricks[0].x + 100, this.bricks[0].y);
-        this.cameraX = 0;
-        this.isPaused = false;
-        document.getElementById('message-overlay').style.display = 'none';
+        // Update the HUD to show the new dynamic total
+        document.getElementById('key-counter').innerHTML = `🔑 <span id="keys-found">0</span> / ${CONFIG.REQUIRED_KEYS}`;
+
+        this.player.reset();
+        // ... rest of function
     }
 
     createPlatform(x, y, w, h) {
@@ -1120,10 +1119,10 @@ class Game {
                 let altWidth = 320 + Math.random() * 280;
                 this.createPlatform(platX + 40, altY, altWidth, 60);
 
-                if (keysPlaced < CONFIG.REQUIRED_KEYS) {
-                    this.items.push({ x: platX + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
-                    keysPlaced++;
-                }
+                // Always place a key here and increment the count
+                this.items.push({ x: platX + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
+                keysPlaced++;
+
                 if (!wingsPlaced && i > 3 && Math.random() > 0.7) {
                     this.items.push({ x: platX + 150, y: altY - 100, type: 'wings', collected: false });
                     wingsPlaced = true;
@@ -1140,6 +1139,7 @@ class Game {
 
         if (!wingsPlaced) {
             this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
+            CONFIG.REQUIRED_KEYS = keysPlaced;
         }
 
        // --- EXIT PLACEMENT (biased toward end of level) ---
