@@ -240,7 +240,7 @@
 <div id="game-wrapper">
     <canvas id="gameCanvas"></canvas>
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.24Gemini</div>
+        <div id="watermark">AVALON UNENDING v0.20GPT</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -273,7 +273,7 @@
     <div id="title-screen" onclick="game.beginGame()">
         <h1>SHADOWS & DAYLIGHT</h1>
         <h2>AVALON UNENDING</h2>
-        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.24Gemini</div>
+        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.20GPT</div>
         <div class="pulse-text">Click or Press any Button to Begin</div>
     </div>
 
@@ -289,11 +289,11 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.24Gemini - Low kick leg graphic shortened
+ * Version: 0.20GPT - Low kick leg graphic shortened
  */
 
 const CONFIG = {
-    VERSION: "0.24Gemini",
+    VERSION: "0.20GPT",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -308,7 +308,7 @@ const CONFIG = {
     PLAYER_BASE_HEIGHT: 206 * 1.15,
     PLAYER_PHYS_HEIGHT: 120,      
     PLAYER_PHYS_WIDTH: 60,        
-    REQUIRED_KEYS: 0,
+    REQUIRED_KEYS: 25,
     MIN_HEAD_CLEARANCE: 260, 
     MAX_JUMP_REACH: 440,
     BRICK_SIZE: 60,
@@ -690,47 +690,22 @@ class Player {
         }
     }
 
-    performHighKick(walls, bricks) {
+    performKick(walls, bricks, isLow = false) {
         if (this.attackTimer > 0) return;
-        // High kick reach
-        const kx = this.direction === 1 ? this.x + this.width + 15 : this.x - 35;
-        const ky = this.y + CONFIG.PLAYER_PHYS_HEIGHT * 0.4; // Chest level
-
-        // Topple logic (only for high kicks)
-        for (let w of walls) {
-            if (w.isToppled) continue;
-            const bounds = w.getBounds();
-            if (kx > bounds.x && kx < bounds.x + bounds.w && ky > bounds.y && ky < bounds.y + bounds.h) {
-                w.topple(this.direction);
-                this.attackTimer = CONFIG.ATTACK_COOLDOWN;
-                return;
-            }
-        }
-
-   
-    performLowKick(walls, bricks) {
-        if (this.attackTimer > 0) return;
+        const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
+        const ky = isLow ? (this.y + CONFIG.PLAYER_PHYS_HEIGHT + 10) : (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);
         
-        // Define a hitbox for the low kick to make it more reliable
-        const hitWidth = 60;
-        const hitHeight = 40;
-        const hx = this.direction === 1 ? this.x + this.width : this.x - hitWidth;
-        // Target specifically 30 pixels above the floor level
-        const hy = this.y + CONFIG.PLAYER_PHYS_HEIGHT - 45; 
-
-        const allBricks = [...bricks];
-        for (let w of walls) allBricks.push(...w.bricks);
-
-        for (let b of allBricks) {
-            if (!b.destroyed && 
-                hx < b.x + b.w && hx + hitWidth > b.x &&
-                hy < b.y + b.h && hy + hitHeight > b.y) {
-                b.damage();
-                this.attackTimer = CONFIG.ATTACK_COOLDOWN;
-                break;
+        if (!isLow) {
+            for (let w of walls) {
+                if (w.isToppled) continue;
+                const bounds = w.getBounds();
+                if (kx > bounds.x && kx < bounds.x + bounds.w && ky > bounds.y && ky < bounds.y + bounds.h) {
+                    w.topple(this.direction);
+                    this.attackTimer = CONFIG.ATTACK_COOLDOWN;
+                    return;
+                }
             }
         }
-    }
 
         const allBricks = [...bricks];
         for (let w of walls) allBricks.push(...w.bricks);
@@ -767,16 +742,15 @@ class Player {
         const physH = CONFIG.PLAYER_PHYS_HEIGHT;
         const physPad = Math.max(0, (this.width - CONFIG.PLAYER_PHYS_WIDTH) / 2);
 
-       if (isLowKick) {
-            this.performLowKick(walls, bricks);
+        if (isLowKick) {
+            this.performKick(walls, bricks, true);
             this.state = 'kickLow';
         } else if (isKicking) {
             if (isHoldingDown && this.grounded) {
-                this.performLowKick(walls, bricks);
+                this.performKick(walls, bricks, true);
                 this.state = 'kickLow';
             } else {
-                this.performHighKick(walls, bricks);
-                this.state = 'kick';
+                this.performKick(walls, bricks, false);
             }
         } else if (isPunching) {
             this.performPunch(bricks);
@@ -1051,18 +1025,19 @@ class Game {
         results.forEach(res => { if (res.img) this.backgrounds[res.src] = res.img; });
     }
 
-  initLevel() {
+    initLevel() {
         const levelData = LEVELS[this.currentLevelIndex];
         document.getElementById('level-name').innerText = `LEVEL ${levelData.id}: ${levelData.name.toUpperCase()}`;
         document.getElementById('objective-text').innerText = levelData.hint;
         
         this.generateLevel();
-        
-        // Update the HUD to show the new dynamic total
-        document.getElementById('key-counter').innerHTML = `🔑 <span id="keys-found">0</span> / ${CONFIG.REQUIRED_KEYS}`;
-
         this.player.reset();
-        // ... rest of function
+        this.particles = [];
+        
+        this.player.spawnAt(this.bricks[0].x + 100, this.bricks[0].y);
+        this.cameraX = 0;
+        this.isPaused = false;
+        document.getElementById('message-overlay').style.display = 'none';
     }
 
     createPlatform(x, y, w, h) {
@@ -1108,10 +1083,10 @@ class Game {
                 let altWidth = 320 + Math.random() * 280;
                 this.createPlatform(platX + 40, altY, altWidth, 60);
 
-                // Always place a key here and increment the count
-                this.items.push({ x: platX + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
-                keysPlaced++;
-
+                if (keysPlaced < CONFIG.REQUIRED_KEYS) {
+                    this.items.push({ x: platX + 100 + (altWidth/2), y: altY - 80, type: 'key', collected: false });
+                    keysPlaced++;
+                }
                 if (!wingsPlaced && i > 3 && Math.random() > 0.7) {
                     this.items.push({ x: platX + 150, y: altY - 100, type: 'wings', collected: false });
                     wingsPlaced = true;
@@ -1128,12 +1103,11 @@ class Game {
 
         if (!wingsPlaced) {
             this.items.push({ x: lastX - 1500, y: 400, type: 'wings', collected: false });
-            CONFIG.REQUIRED_KEYS = keysPlaced;
         }
 
        // --- EXIT PLACEMENT (biased toward end of level) ---
 
-const farPlatforms = this.bricks.filter(p => p.x > lastX * 0.6);
+const farPlatforms = this.bricks.filter(p => p.x > this.levelWidth * 0.6);
 
 const exitPlatform = farPlatforms.length > 0
     ? farPlatforms[Math.floor(Math.random() * farPlatforms.length)]
