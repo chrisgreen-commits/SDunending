@@ -693,7 +693,7 @@ class Player {
     performKick(walls, bricks, isLow = false) {
         if (this.attackTimer > 0) return;
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
-        const ky = isLow ? (this.y + CONFIG.PLAYER_PHYS_HEIGHT - 30) : (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);   
+        const ky = isLow ? (this.y + CONFIG.PLAYER_PHYS_HEIGHT + CONFIG.BRICK_SIZE / 2) : (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);
         
         if (!isLow) {
             for (let w of walls) {
