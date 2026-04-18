@@ -555,6 +555,9 @@ class Player {
         this.state = 'idle';
         this.lastTapTime = 0;
         this.lastTapKey = null;
+        this._gpLastDir = null;
+        this._gpLastTapDir = null;
+        this._gpLastTapTime = 0;
         this.isRunning = false;
         this.attackTimer = 0;
         this.landTimer = 0;
@@ -661,7 +664,20 @@ class Player {
             if (gp.buttons[15].pressed) gpRight = true;
             if (gp.buttons[0].pressed) keys['JumpPressed'] = true; 
             if (gp.buttons[2].pressed) keys['KickPressed'] = true; 
-            if (gp.buttons[7].pressed) keys['LowKickPressed'] = true; 
+            if (gp.buttons[7].pressed) keys['LowKickPressed'] = true;
+
+            // Double-tap run detection for gamepad (mirrors keyboard logic)
+            const gpDir = gpRight ? 'right' : gpLeft ? 'left' : null;
+            if (gpDir && gpDir !== this._gpLastDir) {
+                // Direction just pressed — check if it's a double-tap
+                const now = Date.now();
+                if (gpDir === this._gpLastTapDir && (now - this._gpLastTapTime) < 300) {
+                    this.isRunning = true;
+                }
+                this._gpLastTapDir = gpDir;
+                this._gpLastTapTime = now;
+            }
+            this._gpLastDir = gpDir;
         }
 
         if (!inputLeft && !inputRight && !gpLeft && !gpRight) {
