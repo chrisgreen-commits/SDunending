@@ -880,7 +880,7 @@ class Player {
             this.state = newState;
         }
 
-        const animSpeedMult = (this.hasCoffee ? 2.0 : 1.0) * (IS_MOBILE ? 2.0 : 1.0);
+        const animSpeedMult = (this.hasCoffee ? 2.0 : 1.0) * (IS_MOBILE ? 4.0 : 1.0);
         if (this.state === 'run' || this.state === 'walk') {
             const limit = this.state === 'run' ? 4 : 8;
             if (this.animTimer++ >= limit / animSpeedMult) {
