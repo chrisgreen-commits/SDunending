@@ -244,7 +244,7 @@
 <div id="game-wrapper">
     <canvas id="gameCanvas"></canvas>
     <div id="ui-layer">
-        <div id="watermark">AVALON UNENDING v0.34Chris10Key</div>
+        <div id="watermark">AVALON UNENDING v0.36Claude</div>
         
         <div class="hud-top">
             <div id="level-name">INITIALIZING...</div>
@@ -277,7 +277,7 @@
     <div id="title-screen" onclick="game.beginGame()">
         <h1>SHADOWS & DAYLIGHT</h1>
         <h2>AVALON UNENDING</h2>
-        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.34Chris10Key</div>
+        <div style="margin-top: 40px; color: rgba(255,255,255,0.4); font-size: 1rem; letter-spacing: 2px;">V0.35ClaudeRunJoyFix</div>
         <div class="pulse-text">Click or Press any Button to Begin</div>
     </div>
 
@@ -293,11 +293,13 @@
 <script>
 /**
  * SHADOWS & DAYLIGHT: AVALON UNENDING
- * Version: 0.34Chris10Key - Low kick leg graphic shortened
+ * Version: 0.35ClaudeRunJoyFix - Low kick leg graphic shortened
  */
 
+const IS_MOBILE = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
+
 const CONFIG = {
-    VERSION: "0.34Chris10Key",
+    VERSION: "0.36Claude",
     GRAVITY: 0.45,
     FRICTION: 0.82,
     WALK_SPEED: 0.9,
@@ -322,147 +324,6 @@ const CONFIG = {
     PLATFORM_HIGHLIGHT: '#b0b4b9',
     KICK_SCALE: 1.48,      // Increased to 125% of 1.1875
     LOW_KICK_SCALE: 1.2    // Increased to 125% of 0.96
-};
-
-// --- SFX ENGINE ---
-const SFX = {
-    _ctx: null,
-    _get() {
-        if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
-        return this._ctx;
-    },
-    _play(setup) {
-        try {
-            const ctx = this._get();
-            if (ctx.state === 'suspended') ctx.resume();
-            setup(ctx);
-        } catch(e) {}
-    },
-    jump() {
-        this._play(ctx => {
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.type = 'square';
-            o.frequency.setValueAtTime(220, ctx.currentTime);
-            o.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.12);
-            g.gain.setValueAtTime(0.18, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-            o.connect(g); g.connect(ctx.destination);
-            o.start(); o.stop(ctx.currentTime + 0.18);
-        });
-    },
-    punch() {
-        this._play(ctx => {
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.type = 'square';
-            o.frequency.setValueAtTime(180, ctx.currentTime);
-            o.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.08);
-            g.gain.setValueAtTime(0.3, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-            o.connect(g); g.connect(ctx.destination);
-            o.start(); o.stop(ctx.currentTime + 0.1);
-        });
-    },
-    kickLow() {
-        this._play(ctx => {
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.type = 'square';
-            o.frequency.setValueAtTime(300, ctx.currentTime);
-            o.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.14);
-            g.gain.setValueAtTime(0.22, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.16);
-            o.connect(g); g.connect(ctx.destination);
-            o.start(); o.stop(ctx.currentTime + 0.16);
-        });
-    },
-    kickHigh() {
-        this._play(ctx => {
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.type = 'square';
-            o.frequency.setValueAtTime(500, ctx.currentTime);
-            o.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.12);
-            g.gain.setValueAtTime(0.25, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-            o.connect(g); g.connect(ctx.destination);
-            o.start(); o.stop(ctx.currentTime + 0.15);
-        });
-    },
-    brickBreak() {
-        this._play(ctx => {
-            const bufSize = ctx.sampleRate * 0.12;
-            const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-            const data = buf.getChannelData(0);
-            for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-            const src = ctx.createBufferSource(), g = ctx.createGain();
-            const filter = ctx.createBiquadFilter();
-            filter.type = 'bandpass'; filter.frequency.value = 800;
-            src.buffer = buf;
-            g.gain.setValueAtTime(0.35, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-            src.connect(filter); filter.connect(g); g.connect(ctx.destination);
-            src.start(); src.stop(ctx.currentTime + 0.12);
-        });
-    },
-    wallTopple() {
-        this._play(ctx => {
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.type = 'sawtooth';
-            o.frequency.setValueAtTime(160, ctx.currentTime);
-            o.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.45);
-            g.gain.setValueAtTime(0.28, ctx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-            o.connect(g); g.connect(ctx.destination);
-            o.start(); o.stop(ctx.currentTime + 0.45);
-            const bufSize = ctx.sampleRate * 0.3;
-            const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-            const data = buf.getChannelData(0);
-            for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-            const src = ctx.createBufferSource(), ng = ctx.createGain();
-            src.buffer = buf;
-            ng.gain.setValueAtTime(0.15, ctx.currentTime + 0.1);
-            ng.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-            src.connect(ng); ng.connect(ctx.destination);
-            src.start(ctx.currentTime + 0.1); src.stop(ctx.currentTime + 0.4);
-        });
-    },
-    coin() {
-        this._play(ctx => {
-            [0, 0.1].forEach((delay, i) => {
-                const o = ctx.createOscillator(), g = ctx.createGain();
-                o.type = 'square';
-                o.frequency.value = i === 0 ? 523 : 1047;
-                g.gain.setValueAtTime(0.2, ctx.currentTime + delay);
-                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.12);
-                o.connect(g); g.connect(ctx.destination);
-                o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + 0.12);
-            });
-        });
-    },
-    powerup() {
-        this._play(ctx => {
-            [261, 329, 392, 523, 659].forEach((freq, i) => {
-                const o = ctx.createOscillator(), g = ctx.createGain();
-                o.type = 'square'; o.frequency.value = freq;
-                const t = ctx.currentTime + i * 0.07;
-                g.gain.setValueAtTime(0.18, t);
-                g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-                o.connect(g); g.connect(ctx.destination);
-                o.start(t); o.stop(t + 0.12);
-            });
-        });
-    },
-    death() {
-        this._play(ctx => {
-            [330, 277, 233, 196].forEach((freq, i) => {
-                const o = ctx.createOscillator(), g = ctx.createGain();
-                o.type = 'square'; o.frequency.value = freq;
-                const t = ctx.currentTime + i * 0.18;
-                g.gain.setValueAtTime(0.22, t);
-                g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
-                o.connect(g); g.connect(ctx.destination);
-                o.start(t); o.stop(t + 0.16);
-            });
-        });
-    }
 };
 
 const LEVELS = [
@@ -508,10 +369,10 @@ class Particle {
         this.opacity = 1.0;
     }
 
-    update(dt) {
-        this.y += this.vy * dt;
-        this.life -= dt;
-        this.opacity = Math.max(0, this.life / 60);
+    update() {
+        this.y += this.vy;
+        this.life--;
+        this.opacity = this.life / 60;
     }
 
     draw(ctx, cameraX) {
@@ -544,7 +405,6 @@ class Brick {
         if (this.health <= 0) {
             this.destroyed = true;
         }
-        SFX.brickBreak();
     }
 
     draw(ctx, cameraX, offsetX = 0, offsetY = 0) {
@@ -592,12 +452,11 @@ class Wall {
         this.toppleDirection = direction;
         this.targetRotation = 90 * direction;
         this.game.addParticle(this.currentX, this.currentY - 100, "TIMBER!", "var(--ui-gold)");
-        SFX.wallTopple();
     }
 
-    update(dt) {
+    update() {
         if (this.isFalling) {
-            const step = 5 * this.toppleDirection * dt;
+            const step = 5 * this.toppleDirection;
             this.rotation += step;
             if (Math.abs(this.rotation) >= 90) {
                 this.rotation = this.targetRotation;
@@ -608,10 +467,10 @@ class Wall {
         }
 
         if (this.isToppled) {
-            this.vy += CONFIG.GRAVITY * dt;
-            this.currentY += this.vy * dt;
-            this.currentX += this.vx * dt;
-            this.vx *= Math.pow(0.9, dt);
+            this.vy += CONFIG.GRAVITY;
+            this.currentY += this.vy;
+            this.currentX += this.vx;
+            this.vx *= 0.9;
 
             let foundGround = false;
             for (let platformBrick of this.game.bricks) {
@@ -827,7 +686,7 @@ class Player {
             this.isRunning = false;
         }
 
-        const speedMult = this.hasCoffee ? 2.0 : 1.0;
+        const speedMult = (this.hasCoffee ? 2.0 : 1.0) * (IS_MOBILE ? 2.0 : 1.0);
         const accel = (this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED) * speedMult;
         const max = (this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED) * speedMult;
 
@@ -846,7 +705,7 @@ class Player {
         if (this.attackTimer > 0) return;
         const px = this.x + this.width / 2;
         const py = this.y + CONFIG.PLAYER_PHYS_HEIGHT + 20;
-        SFX.punch();
+
         for (let b of bricks) {
             if (!b.destroyed && px > b.x && px < b.x + b.w && py > b.y && py < b.y + b.h + 20) {
                 b.damage();
@@ -860,7 +719,7 @@ class Player {
         if (this.attackTimer > 0) return;
         const kx = this.direction === 1 ? this.x + this.width + 10 : this.x - 30;
         const ky = isLow ? (this.y + CONFIG.PLAYER_PHYS_HEIGHT + 10) : (this.y + CONFIG.PLAYER_PHYS_HEIGHT / 2);
-        if (isLow) SFX.kickLow(); else SFX.kickHigh();
+        
         if (!isLow) {
             for (let w of walls) {
                 if (w.isToppled) continue;
@@ -885,16 +744,16 @@ class Player {
         }
     }
 
-    update(walls, bricks, items, dt) {
+    update(walls, bricks, items) {
         const wasGrounded = this.grounded;
-        if (this.attackTimer > 0) this.attackTimer -= dt;
+        if (this.attackTimer > 0) this.attackTimer--;
 
         this.handleInput();
 
-        this.vx *= Math.pow(CONFIG.FRICTION, dt);
-        this.x += this.vx * dt;
-        this.vy += CONFIG.GRAVITY * dt;
-        this.y += this.vy * dt;
+        this.vx *= CONFIG.FRICTION;
+        this.x += this.vx;
+        this.vy += CONFIG.GRAVITY;
+        this.y += this.vy;
         
         let foundGround = false;
         const isHoldingDown = (keys['arrowdown'] || keys['s']);
@@ -975,23 +834,22 @@ class Player {
 
         this.grounded = foundGround;
         if (this.grounded) {
-            this.groundedFrames += dt;
+            this.groundedFrames++;
             this.airFrames = 0;
         } else {
             this.groundedFrames = 0;
-            this.airFrames += dt;
+            this.airFrames++;
         }
 
         const wasGenuinelyAirborne = this.airFrames > 3;
 
         if (keys['JumpPressed']) {
             if (this.grounded || (this.hasWings && this.extraJumps > 0)) {
-                const jumpMult = this.hasCoffee ? 1.2 : 1.0; 
+                const jumpMult = (this.hasCoffee ? 1.2 : 1.0) * (IS_MOBILE ? 1.2 : 1.0);
                 this.vy = this.grounded ? -CONFIG.JUMP_FORCE * jumpMult : -CONFIG.JUMP_FORCE * 0.95 * jumpMult;
                 if (!this.grounded) this.extraJumps--;
                 this.grounded = false;
                 keys['JumpPressed'] = false;
-                SFX.jump();
             }
         }
 
@@ -1004,7 +862,7 @@ class Player {
         } else {
             if (this.landTimer > 0) {
                 newState = 'land';
-                this.landTimer -= dt;
+                this.landTimer--;
             } else if (!wasGrounded && wasGenuinelyAirborne) {
                 newState = 'land';
                 this.landTimer = 6;
@@ -1022,11 +880,10 @@ class Player {
             this.state = newState;
         }
 
-        const animSpeedMult = this.hasCoffee ? 2.0 : 1.0;
+        const animSpeedMult = (this.hasCoffee ? 2.0 : 1.0) * (IS_MOBILE ? 2.0 : 1.0);
         if (this.state === 'run' || this.state === 'walk') {
             const limit = this.state === 'run' ? 4 : 8;
-            this.animTimer += dt * animSpeedMult;
-            if (this.animTimer >= limit) {
+            if (this.animTimer++ >= limit / animSpeedMult) {
                 this.animFrame = (this.animFrame + 1) % 2;
                 this.animTimer = 0;
             }
@@ -1037,18 +894,15 @@ class Player {
                 if (this.x + physPad < item.x + 50 - 15 && this.x + this.width - physPad > item.x + 15 &&
                     this.y < item.y + 60 && this.y + physH > item.y) {
                     item.collected = true;
-                    if (item.type === 'key') {
-                        this.keysCollected++;
-                        SFX.coin();
-                    } else if (item.type === 'wings') {
+                    if (item.type === 'key') this.keysCollected++;
+                    else if (item.type === 'wings') {
                         this.hasWings = true;
                         this.extraJumps = 2;
                         this.game.addParticle(this.x, this.y, "Aerial Ascension!", "gold");
-                        SFX.powerup();
-                    } else if (item.type === 'coffee') {
+                    } 
+                    else if (item.type === 'coffee') {
                         this.hasCoffee = true;
                         this.game.addParticle(this.x, this.y, "Caffeine Rush!", "#ff8c00");
-                        SFX.powerup();
                     }
                     this.updateUI();
                 }
@@ -1056,7 +910,6 @@ class Player {
         }
 
         if (this.y > CONFIG.INTERNAL_HEIGHT + 1000) {
-            SFX.death();
             let respawn = this.game.bricks.find(b => !b.destroyed);
             this.spawnAt(respawn ? respawn.x : 0, respawn ? respawn.y - 200 : 500);
         }
@@ -1157,7 +1010,6 @@ class Game {
         this.cameraX = 0;
         this.isPaused = true;
         this.gameStarted = false;
-        this._lastTime = null;
 
         this.handleResize();
         window.addEventListener('resize', () => this.handleResize());
@@ -1316,18 +1168,18 @@ this.exit = {
 };
     }
 
-    update(dt) {
+    update() {
         if (this.isPaused) return;
 
-        this.player.update(this.walls, this.bricks, this.items, dt);
-        for (let w of this.walls) w.update(dt);
+        this.player.update(this.walls, this.bricks, this.items);
+        for (let w of this.walls) w.update();
         
         for (let i = this.particles.length - 1; i >= 0; i--) {
-            this.particles[i].update(dt);
+            this.particles[i].update();
             if (this.particles[i].life <= 0) this.particles.splice(i, 1);
         }
 
-        this.cameraX += ((this.player.x - CONFIG.INTERNAL_WIDTH / 3) - this.cameraX) * 0.1 * dt;
+        this.cameraX += ((this.player.x - CONFIG.INTERNAL_WIDTH / 3) - this.cameraX) * 0.1;
         this.cameraX = Math.max(0, this.cameraX);
 
         if (this.player.x + this.player.width > this.exit.x && this.player.x < this.exit.x + this.exit.w &&
@@ -1405,7 +1257,7 @@ this.exit = {
         for (let p of this.particles) p.draw(this.ctx, this.cameraX);
     }
 
-    loop(timestamp) { 
+    loop() { 
         if (!this.gameStarted) {
             const gp = navigator.getGamepads()[0];
             if (gp) {
@@ -1414,15 +1266,9 @@ this.exit = {
                 }
             }
         }
-        // Delta time: normalized so 60fps = 1.0, clamped to prevent physics explosions
-        if (this._lastTime === null) this._lastTime = timestamp;
-        const rawDt = (timestamp - this._lastTime) / 16.667;
-        const dt = Math.min(Math.max(rawDt, 0.5), 2.0);
-        this._lastTime = timestamp;
-
-        this.update(dt); 
+        this.update(); 
         this.draw(); 
-        requestAnimationFrame((ts) => this.loop(ts)); 
+        requestAnimationFrame(() => this.loop()); 
     }
 }
 
@@ -1464,7 +1310,7 @@ window.addEventListener('keyup', e => {
 let game;
 window.onload = () => {
     game = new Game();
-    requestAnimationFrame((ts) => game.loop(ts));
+    game.loop();
 };
 </script>
 </body>
