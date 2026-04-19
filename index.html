@@ -686,6 +686,11 @@ class Player {
             this.isRunning = false;
         }
 
+        // Shift held + direction = run, regardless of double-tap state
+        if (keys['shift'] && (inputLeft || inputRight || gpLeft || gpRight)) {
+            this.isRunning = true;
+        }
+
         const speedMult = (this.hasCoffee ? 2.0 : 1.0) * (IS_MOBILE ? 4.0 : 1.0);
         const accel = (this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED) * speedMult;
         const max = (this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED) * speedMult;
@@ -1297,7 +1302,7 @@ window.addEventListener('keydown', e => {
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = true;
     if (key === ' ' || key === 'r') keys['KickPressed'] = true;
     if (key === 'f') keys['LowKickPressed'] = true;
-    if (e.key === 'Shift') game.player.isRunning = true;
+    if (e.key === 'Shift') keys['shift'] = true;
 });
 
 window.addEventListener('keyup', e => {
@@ -1306,7 +1311,7 @@ window.addEventListener('keyup', e => {
     if (key === 'arrowup' || key === 'w') keys['JumpPressed'] = false;
     if (key === ' ' || key === 'r') keys['KickPressed'] = false;
     if (key === 'f') keys['LowKickPressed'] = false;
-    if (e.key === 'Shift') game.player.isRunning = false;
+    if (e.key === 'Shift') keys['shift'] = false;
 });
 
 let game;
