@@ -686,7 +686,7 @@ class Player {
             this.isRunning = false;
         }
 
-        const speedMult = (this.hasCoffee ? 2.0 : 1.0) * (IS_MOBILE ? 2.0 : 1.0);
+        const speedMult = (this.hasCoffee ? 2.0 : 1.0) * (IS_MOBILE ? 4.0 : 1.0);
         const accel = (this.isRunning ? CONFIG.RUN_SPEED : CONFIG.WALK_SPEED) * speedMult;
         const max = (this.isRunning ? CONFIG.MAX_RUN_SPEED : CONFIG.MAX_WALK_SPEED) * speedMult;
 
